@@ -5,7 +5,7 @@ derived from the specifications under `specs/policies/` and the `@pytest.mark.ve
 markers in `tests/`, so this file describes the repository as it is rather than as it was
 when somebody last remembered to update a table.
 
-50 requirements, 95 verification links.
+59 requirements, 112 verification links.
 
 ## `specs/policies/_contract.md`
 
@@ -87,6 +87,20 @@ when somebody last remembered to update a table.
 | **POL-RND-4**<br>The observation makes no difference | Given the same generator state, the policy SHALL return the same actions whatever the observations contain. | `sim/policy/random_policy.py::RandomPolicy.action_for` | `tests/policy/test_random_policy.py::test_ignores_what_the_uav_can_see` | agreed |
 | **POL-RND-5**<br>Every draw comes from the run's generator | The policy SHALL draw both the direction and the speed from `config.SYSTEM_RANDOM`, read at the time the policy runs, so that two runs under the same seed produce the same actions. | `sim/policy/random_policy.py::RandomPolicy.action_for` | `tests/policy/test_random_policy.py::test_different_seeds_give_different_actions`<br>`tests/policy/test_random_policy.py::test_same_seed_reproduces_the_same_actions` | agreed |
 
+## `specs/policies/scout.md`
+
+| Requirement | Statement | Implementation | Verified by | Status |
+|---|---|---|---|---|
+| **POL-SCT-1**<br>Lanes do not overlap | Within a single call to `select_actions()`, the policy SHALL give each UAV a lane, a contiguous range of grid columns, such that no two lanes share a column, and SHALL order the lanes left to right by ascending `observation.uav_id`. | `sim/policy/scout_policy.py::ScoutPolicy.lanes` | `tests/policy/test_scout_policy.py::test_lanes_never_share_a_column_and_run_left_to_right_by_uav_id` | draft |
+| **POL-SCT-2**<br>A UAV sweeping its lane stays in its flying zone | When `observation.pos` is on the sweep loop of the UAV's lane, the policy SHALL return an action whose flight path contains no cell outside the UAV's flying zone. | `sim/policy/scout_policy.py::ScoutPolicy.flying_zone`<br>`sim/policy/scout_policy.py::ScoutPolicy.loop_action`<br>`sim/policy/scout_policy.py::ScoutPolicy.sweep_columns` | `tests/policy/test_scout_policy.py::test_a_team_out_of_step_on_its_loops_keeps_the_separation_at_every_step`<br>`tests/policy/test_scout_policy.py::test_a_uav_on_its_loop_never_flies_outside_its_flying_zone`<br>`tests/policy/test_scout_policy.py::test_no_two_loops_come_closer_than_the_separation` | draft |
+| **POL-SCT-3**<br>A UAV off the loop flies toward it | When `observation.pos` is not on the sweep loop of the UAV's lane, the policy SHALL fly the UAV along its own row toward the nearest sweep column or, on the bottom row outside the loop, toward the nearer end of the return row, so that the UAV is on the loop after a bounded number of steps. | `sim/policy/scout_policy.py::ScoutPolicy.approach_action`<br>`sim/policy/base.py::step_towards` | `tests/policy/test_scout_policy.py::test_a_uav_anywhere_on_the_grid_reaches_its_loop` | draft |
+| **POL-SCT-4**<br>On the loop, the UAV follows it | When `observation.pos` is on the sweep loop, the policy SHALL fly the UAV along the loop in its direction of travel: up an even sweep column and down an odd one, right along the top of the zone after an even column and along the bottom connector after an odd one, down onto the return row from the last column, left along the return row, and up onto the first column from the end of the return row. | `sim/policy/scout_policy.py::ScoutPolicy.loop_action` | `tests/policy/test_scout_policy.py::test_a_uav_on_the_loop_flies_in_the_direction_of_travel`<br>`tests/policy/test_scout_policy.py::test_the_loop_closes_and_visits_no_cell_twice` | draft |
+| **POL-SCT-5**<br>One lap of the loop covers the whole lane | When a UAV follows the policy's actions from any cell of its sweep loop without being obstructed, the policy SHALL bring every cell of that UAV's lane inside its observation window at some step within one lap of the loop. | `sim/policy/scout_policy.py::ScoutPolicy.sweep_columns`<br>`sim/policy/scout_policy.py::ScoutPolicy.loop_action` | `tests/policy/test_scout_policy.py::test_a_uav_that_joins_the_loop_half_way_still_sees_the_whole_lane`<br>`tests/policy/test_scout_policy.py::test_one_lap_of_the_loop_brings_every_cell_of_the_lane_into_view` | draft |
+| **POL-SCT-6**<br>A flight is trimmed to stop short of another UAV | The policy SHALL reduce the speed of a movement action so that its flight path contains no position in `observation.uav_positions` and no position already on the flight path of a UAV earlier in the same call, returning `Action.stay()` when even the first cell is taken. | `sim/policy/scout_policy.py::ScoutPolicy.deconflict`<br>`sim/policy/base.py::avoid`<br>`sim/policy/base.py::flight_path` | `tests/policy/test_scout_policy.py::test_a_flight_stops_short_of_a_cell_a_teammate_was_sent_through`<br>`tests/policy/test_scout_policy.py::test_a_flight_stops_short_of_a_uav_in_the_way`<br>`tests/policy/test_scout_policy.py::test_a_uav_beside_the_route_costs_it_nothing`<br>`tests/policy/test_scout_policy.py::test_a_uav_with_the_next_cell_taken_holds_position` | draft |
+| **POL-SCT-7**<br>The home base is shared airspace | The policy SHALL NOT trim a flight on account of a UAV standing on a position in `observation.base_footprint()`. | `sim/policy/scout_policy.py::ScoutPolicy.deconflict`<br>`sim/policy/observation.py::Observation.base_footprint` | `tests/policy/test_scout_policy.py::test_a_uav_standing_on_the_base_does_not_block_a_flight` | draft |
+| **POL-SCT-8**<br>No UAV is sent further than it can see | The policy SHALL reduce the speed of a movement action to at most `config.UAV_OBSERVATION_RADIUS` and at most `config.UAV_SPEED`, returning `Action.stay()` when either is zero. | `sim/policy/scout_policy.py::ScoutPolicy.within_sight` | `tests/policy/test_scout_policy.py::test_a_uav_that_cannot_fly_or_cannot_see_holds_position`<br>`tests/policy/test_scout_policy.py::test_no_flight_is_longer_than_the_radius_or_the_speed` | draft |
+| **POL-SCT-9**<br>A lane that cannot be swept is held | When the UAV's lane cannot hold a sweep loop, that is when `config.UAV_OBSERVATION_RADIUS` is below one, when the grid has fewer than four rows, or when the flying zone has fewer than two columns, the policy SHALL return `Action.stay()`. | `sim/policy/scout_policy.py::ScoutPolicy.action_for`<br>`sim/policy/scout_policy.py::ScoutPolicy.sweep_columns` | `tests/policy/test_scout_policy.py::test_a_lane_that_cannot_hold_a_loop_is_held` | draft |
+
 ## By implementation
 
 | Symbol | Requirements |
@@ -101,11 +115,11 @@ when somebody last remembered to update a table.
 | `sim/policy/base.py::Policy.configure` | POL-GEN-8 |
 | `sim/policy/base.py::Policy.name` | POL-GEN-6 |
 | `sim/policy/base.py::Policy.select_actions` | POL-GEN-1, POL-GEN-5, POL-GEN-7 |
-| `sim/policy/base.py::avoid` | POL-DSP-4, POL-FF-11 |
+| `sim/policy/base.py::avoid` | POL-DSP-4, POL-FF-11, POL-SCT-6 |
 | `sim/policy/base.py::by_distance` | POL-FF-7 |
-| `sim/policy/base.py::flight_path` | POL-FF-11 |
+| `sim/policy/base.py::flight_path` | POL-FF-11, POL-SCT-6 |
 | `sim/policy/base.py::nearest` | POL-FOL-2 |
-| `sim/policy/base.py::step_towards` | POL-FF-6, POL-FOL-4, POL-FOL-5, POL-FOL-6, POL-GEN-3 |
+| `sim/policy/base.py::step_towards` | POL-FF-6, POL-FOL-4, POL-FOL-5, POL-FOL-6, POL-GEN-3, POL-SCT-3 |
 | `sim/policy/defend_base.py::DefendBasePolicy.action_for` | POL-DEF-10, POL-DEF-3, POL-DEF-5, POL-DEF-6 |
 | `sim/policy/defend_base.py::DefendBasePolicy.base_anchor` | POL-DEF-4, POL-DEF-8 |
 | `sim/policy/defend_base.py::DefendBasePolicy.distance_to_base` | POL-DEF-1 |
@@ -128,17 +142,25 @@ when somebody last remembered to update a table.
 | `sim/policy/follow_fire.py::FollowFirePolicy.action_for` | POL-FOL-1, POL-FOL-2, POL-FOL-3 |
 | `sim/policy/observation.py::Observation` | POL-GEN-7 |
 | `sim/policy/observation.py::Observation.at_base` | POL-FF-3 |
-| `sim/policy/observation.py::Observation.base_footprint` | POL-FF-12 |
+| `sim/policy/observation.py::Observation.base_footprint` | POL-FF-12, POL-SCT-7 |
 | `sim/policy/observation.py::Observation.burning_positions` | POL-FOL-3 |
 | `sim/policy/observation.py::Observation.low_fuel` | POL-DEF-6, POL-FF-1 |
 | `sim/policy/params.py::PolicyParams` | POL-GEN-8 |
 | `sim/policy/random_policy.py::RandomPolicy.action_for` | POL-RND-1, POL-RND-2, POL-RND-3, POL-RND-4, POL-RND-5 |
+| `sim/policy/scout_policy.py::ScoutPolicy.action_for` | POL-SCT-9 |
+| `sim/policy/scout_policy.py::ScoutPolicy.approach_action` | POL-SCT-3 |
+| `sim/policy/scout_policy.py::ScoutPolicy.deconflict` | POL-SCT-6, POL-SCT-7 |
+| `sim/policy/scout_policy.py::ScoutPolicy.flying_zone` | POL-SCT-2 |
+| `sim/policy/scout_policy.py::ScoutPolicy.lanes` | POL-SCT-1 |
+| `sim/policy/scout_policy.py::ScoutPolicy.loop_action` | POL-SCT-2, POL-SCT-4, POL-SCT-5 |
+| `sim/policy/scout_policy.py::ScoutPolicy.sweep_columns` | POL-SCT-2, POL-SCT-5, POL-SCT-9 |
+| `sim/policy/scout_policy.py::ScoutPolicy.within_sight` | POL-SCT-8 |
 
 ## Gaps
 
 Every current requirement is verified by test.
 
-61 tests under `tests/policy/` carry no `verifies` marker. That is
+64 tests under `tests/policy/` carry no `verifies` marker. That is
 allowed — not every test is evidence for a stated requirement — but a long list here is
 usually a sign that the specifications are behind the tests. The SuperPolicy tests are
 expected to be here: see "What is not specified here" in `specs/README.md`.
@@ -160,6 +182,7 @@ expected to be here: see "What is not specified here" in `specs/README.md`.
 - `tests/policy/test_observation.py::test_a_part_load_is_reported_as_the_share_of_a_full_one`
 - `tests/policy/test_observation.py::test_a_uav_on_any_cell_of_the_footprint_is_at_the_base`
 - `tests/policy/test_observation.py::test_an_empty_uav_carries_no_payload`
+- `tests/policy/test_observation.py::test_an_observation_built_without_smoke_is_blind_to_nothing`
 - `tests/policy/test_observation.py::test_burning_count_matches_burning_positions`
 - `tests/policy/test_observation.py::test_burning_positions_returns_only_burning_cells`
 - `tests/policy/test_observation.py::test_cells_default_is_not_shared_between_observations`
@@ -170,9 +193,11 @@ expected to be here: see "What is not specified here" in `specs/README.md`.
 - `tests/policy/test_observation.py::test_occupied_finds_the_cells_other_uavs_are_standing_on`
 - `tests/policy/test_observation.py::test_the_anchor_alone_is_the_footprint_when_no_cells_are_given`
 - `tests/policy/test_observation.py::test_the_footprint_is_empty_without_a_base`
+- `tests/policy/test_observation.py::test_the_occluded_cells_are_the_ones_the_smoke_took_away`
 - `tests/policy/test_observation.py::test_the_payload_falls_back_to_the_boolean_without_a_capacity`
 - `tests/policy/test_observation.py::test_uav_positions_default_is_not_shared_between_observations`
 - `tests/policy/test_observation.py::test_uav_positions_default_to_an_empty_view`
+- `tests/policy/test_observation.py::test_what_the_smoke_hid_counts_for_nothing_anywhere_else`
 - `tests/policy/test_policy_interface.py::test_a_malformed_pair_is_rejected`
 - `tests/policy/test_policy_interface.py::test_actions_describe_themselves_for_the_log`
 - `tests/policy/test_policy_interface.py::test_an_action_is_left_alone`
@@ -204,3 +229,11 @@ expected to be here: see "What is not specified here" in `specs/README.md`.
 - `tests/policy/test_super_policy.py::test_two_uavs_on_different_policies_are_not_sent_to_the_same_cell`
 - `tests/policy/test_super_policy.py::test_uavs_on_one_policy_are_handed_over_together`
 - `tests/policy/test_super_policy.py::test_uavs_with_different_parameters_are_not_grouped`
+
+## Findings
+
+The trace is currently broken. `python3 tools/trace.py check` exits non-zero.
+
+- [spec] specs/policies/movement.md: specs/policies/movement.md:22 (POL-MOV-1): has no yaml block
+- [spec] specs/policies/movement.md: specs/policies/movement.md:27 (POL-MOV-2): has no yaml block
+- [orphan-spec] specs/policies/movement.md: there is no registered policy named 'movement'
