@@ -389,3 +389,177 @@ def test_a_lane_that_cannot_hold_a_loop_is_held(policy, observation, shape, sim_
 
     assert actions == [Action.stay(), Action.stay()]
     assert all(action.direction == ACTION_STAY for action in actions)
+
+
+
+# --- fuel ----------------------------------------------------------------------
+#
+# The numbers below are worked out by hand, so that they check the policy against the arithmetic and not
+# against itself. The grid is 40 columns by 20 rows with a radius of 2, so a UAV cruises at 2 cells a step,
+# and a step of 2 cells costs 1 + 2 ** 1.5 = 3.83 fuel with the idle burn and the burn per cell at 1. The base
+# is the 2 by 2 block at (10, 10), and the UAV is at (5, 6), 4 rows below the base row and 5 columns left of
+# it: the way home is two steps up (7.66) and two steps and a short one along (7.66 + 2.0), which is 17.31.
+# One more step out and back is 2 * 3.83 = 7.66, and the reserve is a tenth of a tank of 100, which is 10, so
+# the UAV has to turn for home once its tank holds 34.97 or less.
+
+BASE = {"base_pos": (10, 10), "base_cells": [(10, 10), (11, 10), (10, 11), (11, 11)]}
+
+
+@pytest.fixture
+def fueled(shape, sim_config):
+    shape(40, 20, 2, 2)
+    sim_config(UAV_FUEL=100, UAV_FUEL_RESERVE=0.1, UAV_FUEL_IDLE_BURN=1.0, UAV_FUEL_BURN_PER_CELL=1.0,
+               UAV_FUEL_SPEED_EXPONENT=1.5, UAV_FUEL_WATER_PENALTY=0.3, ACTIVATE_FUEL=True)
+
+
+@pytest.mark.verifies("POL-SCT-10")
+def test_a_uav_that_can_only_just_get_home_turns_for_the_base(fueled, policy, observation):
+    # 34 is under the 34.97 it takes, and the base is above it, so the way home starts vertically
+    obs = observation(pos=(5, 6), uav_id=0, fuel=34, **BASE)
+
+    assert policy.select_actions([obs]) == [Action(ACTION_UP, 2)]
+
+
+@pytest.mark.verifies("POL-SCT-10")
+def test_a_uav_with_the_fuel_to_spare_keeps_sweeping(fueled, policy, observation):
+    # 36 is over the 34.97, and column 5 is an odd one, which the loop flies down
+    obs = observation(pos=(5, 6), uav_id=0, fuel=36, **BASE)
+
+    assert policy.select_actions([obs]) == [Action(ACTION_DOWN, 2)]
+
+
+@pytest.mark.verifies("POL-SCT-10")
+def test_the_one_step_lookahead_turns_a_uav_home_before_the_way_back_is_too_long(fueled, policy, observation):
+    # 30 clears the 17.31 to fly home and the 10 reserve, which is 27.31, so a UAV that only asked whether
+    # it could get home from where it stands would carry on. It would then be a step further out with 9
+    # fewer, and the way back would be 7.66 longer: it would turn for home too late. The lookahead is what
+    # makes this one turn now.
+    obs = observation(pos=(5, 6), uav_id=0, fuel=30, **BASE)
+
+    assert policy.select_actions([obs]) == [Action(ACTION_UP, 2)]
+
+
+@pytest.mark.verifies("POL-SCT-10")
+def test_the_water_a_uav_still_carries_makes_it_turn_for_home_sooner(fueled, policy, observation):
+    # carrying a full load adds 30% to the whole trip: (17.31 + 7.66) * 1.3 + 10 = 42.46. So 40 is enough to
+    # carry on without the water and not enough with it
+    dry = observation(pos=(5, 6), uav_id=0, fuel=40, **BASE)
+    loaded = observation(pos=(5, 6), uav_id=0, fuel=40, has_water=True, **BASE)
+
+    assert policy.select_actions([dry]) == [Action(ACTION_DOWN, 2)]
+    assert policy.select_actions([loaded]) == [Action(ACTION_UP, 2)]
+
+
+@pytest.mark.verifies("POL-SCT-10")
+def test_on_the_base_row_a_uav_that_needs_fuel_flies_along_it(fueled, policy, observation):
+    # 4 columns left of the nearest base cell, so it is one row-wise step of 2 toward it
+    obs = observation(pos=(6, 10), uav_id=0, fuel=20, **BASE)
+
+    assert policy.select_actions([obs]) == [Action(ACTION_RIGHT, 2)]
+
+
+@pytest.mark.verifies("POL-SCT-10")
+def test_a_uav_to_the_right_of_the_base_flies_left_and_one_above_flies_down(fueled, policy, observation):
+    right = observation(pos=(16, 10), uav_id=0, fuel=20, **BASE)
+    above = observation(pos=(10, 14), uav_id=0, fuel=20, **BASE)
+
+    assert policy.select_actions([right]) == [Action(ACTION_LEFT, 2)]
+    assert policy.select_actions([above]) == [Action(ACTION_DOWN, 2)]
+
+
+@pytest.mark.verifies("POL-SCT-11")
+def test_a_uav_on_the_base_with_a_part_empty_tank_waits_to_be_served(fueled, policy, observation):
+    obs = observation(pos=(10, 10), uav_id=0, fuel=99, **BASE)
+
+    assert policy.select_actions([obs]) == [Action.stay()]
+
+
+@pytest.mark.verifies("POL-SCT-11")
+def test_a_uav_on_the_base_with_a_full_tank_sets_out(fueled, policy, observation):
+    # a full tank is 100, and the nearest sweep column to x = 10 is 9
+    obs = observation(pos=(10, 10), uav_id=0, fuel=100, **BASE)
+
+    assert policy.select_actions([obs]) == [Action(ACTION_LEFT, 1)]
+
+
+@pytest.mark.verifies("POL-SCT-12")
+def test_with_the_fuel_extension_off_the_rule_never_fires(fueled, policy, observation):
+    # no fuel reading at all, which is what the real observation gives when ACTIVATE_FUEL is off
+    obs = observation(pos=(5, 6), uav_id=0, **BASE)
+
+    assert policy.select_actions([obs]) == [Action(ACTION_DOWN, 2)]
+
+
+@pytest.mark.verifies("POL-SCT-12")
+def test_a_capacity_with_no_fuel_reading_is_not_a_reason_to_refuel(fueled, policy, observation):
+    # the simulator reports both or neither, but an observation built by hand can carry one without the other,
+    # and the rule has to treat "no reading" as "nothing to react to" rather than trip over it
+    obs = observation(pos=(5, 6), uav_id=0, fuel=None, fuel_capacity=100.0, **BASE)
+
+    assert policy.select_actions([obs]) == [Action(ACTION_DOWN, 2)]
+
+
+@pytest.mark.verifies("POL-SCT-12")
+@pytest.mark.parametrize("fuel", [1, 50, 100])
+def test_with_no_base_to_go_to_the_rule_never_fires(fueled, policy, observation, fuel):
+    obs = observation(pos=(5, 6), uav_id=0, fuel=fuel)
+
+    assert policy.select_actions([obs]) == [Action(ACTION_DOWN, 2)]
+
+
+@pytest.mark.verifies("POL-SCT-13")
+def test_a_uav_off_its_loop_that_is_blocked_steps_aside(fueled, policy, observation):
+    # at (4, 12) the nearest sweep column is 5, so it wants to go right and finds a UAV on (5, 12)
+    obs = observation(pos=(4, 12), uav_id=0, uavs=[(5, 12)], fuel=100, **BASE)
+
+    assert policy.select_actions([obs]) == [Action(ACTION_UP, 1)]
+
+
+@pytest.mark.verifies("POL-SCT-13")
+def test_a_uav_on_the_top_row_steps_aside_downward(fueled, policy, observation):
+    # (0, 19) is left of the first sweep column, so off the loop, and the column is the next cell along
+    obs = observation(pos=(0, 19), uav_id=0, uavs=[(1, 19)], fuel=100, **BASE)
+
+    assert policy.select_actions([obs]) == [Action(ACTION_DOWN, 1)]
+
+
+@pytest.mark.verifies("POL-SCT-13")
+def test_a_uav_on_its_way_to_refuel_keeps_the_right_of_way(fueled, policy, observation):
+    # blocked in the same way, but it needs fuel, so it holds position and the other one gives way
+    obs = observation(pos=(14, 10), uav_id=0, uavs=[(13, 10)], fuel=20, **BASE)
+
+    assert policy.select_actions([obs]) == [Action.stay()]
+
+
+@pytest.mark.verifies("POL-SCT-13")
+def test_a_uav_on_its_loop_does_not_give_way(fueled, policy, observation):
+    # on column 5 going down, with a UAV in the next cell: it holds, because its guarantee is worth more
+    obs = observation(pos=(5, 6), uav_id=0, uavs=[(5, 5)], fuel=100, **BASE)
+
+    assert policy.select_actions([obs]) == [Action.stay()]
+
+
+@pytest.mark.verifies("POL-SCT-13")
+def test_a_head_on_meeting_in_the_base_row_does_not_deadlock(fueled, policy, observation):
+    """The bug that put POL-SCT-13 in the specification.
+
+    UAV 0 is coming home to refuel along the base row from the right, UAV 1 has just refuelled and is going
+    out to its lane along the same row, and they meet with one cell between them. Before the rule each was
+    trimmed to a stop by the other, for ever, and UAV 0 ran dry three cells from the base. It was found by a
+    run in which every seed lost a UAV at the same step.
+    """
+    positions = {0: (14, 10), 1: (13, 10)}
+    fuel = {0: 20.0, 1: 100.0}
+    for _ in range(12):
+        observations = [observation(pos=positions[i], uav_id=i, fuel=fuel[i],
+                                    uavs=[positions[j] for j in positions if j != i and in_window(positions[j], positions[i])],
+                                    **BASE)
+                        for i in positions]
+        for uav_id, action in zip(positions, policy.select_actions(observations)):
+            x, y = positions[uav_id]
+            if action.is_movement():
+                step_x, step_y = config.MOVEMENT_VECTORS[action.direction]
+                x, y = x + step_x * action.speed, y + step_y * action.speed
+            positions[uav_id] = (x, y)
+
+    assert positions[0] in BASE["base_cells"]

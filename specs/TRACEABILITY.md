@@ -5,7 +5,7 @@ derived from the specifications under `specs/policies/` and the `@pytest.mark.ve
 markers in `tests/`, so this file describes the repository as it is rather than as it was
 when somebody last remembered to update a table.
 
-59 requirements, 112 verification links.
+62 requirements, 127 verification links.
 
 ## `specs/policies/_contract.md`
 
@@ -99,7 +99,10 @@ when somebody last remembered to update a table.
 | **POL-SCT-6**<br>A flight is trimmed to stop short of another UAV | The policy SHALL reduce the speed of a movement action so that its flight path contains no position in `observation.uav_positions` and no position already on the flight path of a UAV earlier in the same call, returning `Action.stay()` when even the first cell is taken. | `sim/policy/scout_policy.py::ScoutPolicy.deconflict`<br>`sim/policy/base.py::avoid`<br>`sim/policy/base.py::flight_path` | `tests/policy/test_scout_policy.py::test_a_flight_stops_short_of_a_cell_a_teammate_was_sent_through`<br>`tests/policy/test_scout_policy.py::test_a_flight_stops_short_of_a_uav_in_the_way`<br>`tests/policy/test_scout_policy.py::test_a_uav_beside_the_route_costs_it_nothing`<br>`tests/policy/test_scout_policy.py::test_a_uav_with_the_next_cell_taken_holds_position` | draft |
 | **POL-SCT-7**<br>The home base is shared airspace | The policy SHALL NOT trim a flight on account of a UAV standing on a position in `observation.base_footprint()`. | `sim/policy/scout_policy.py::ScoutPolicy.deconflict`<br>`sim/policy/observation.py::Observation.base_footprint` | `tests/policy/test_scout_policy.py::test_a_uav_standing_on_the_base_does_not_block_a_flight` | draft |
 | **POL-SCT-8**<br>No UAV is sent further than it can see | The policy SHALL reduce the speed of a movement action to at most `config.UAV_OBSERVATION_RADIUS` and at most `config.UAV_SPEED`, returning `Action.stay()` when either is zero. | `sim/policy/scout_policy.py::ScoutPolicy.within_sight` | `tests/policy/test_scout_policy.py::test_a_uav_that_cannot_fly_or_cannot_see_holds_position`<br>`tests/policy/test_scout_policy.py::test_no_flight_is_longer_than_the_radius_or_the_speed` | draft |
-| **POL-SCT-9**<br>A lane that cannot be swept is held | When the UAV's lane cannot hold a sweep loop, that is when `config.UAV_OBSERVATION_RADIUS` is below one, when the grid has fewer than four rows, or when the flying zone has fewer than two columns, the policy SHALL return `Action.stay()`. | `sim/policy/scout_policy.py::ScoutPolicy.action_for`<br>`sim/policy/scout_policy.py::ScoutPolicy.sweep_columns` | `tests/policy/test_scout_policy.py::test_a_lane_that_cannot_hold_a_loop_is_held` | draft |
+| **POL-SCT-10**<br>Fuel outranks the sweep | When `observation.fuel` is not `None` and the home base exists, and `observation.fuel` is at most the fuel to fly from `observation.pos` to the nearest cell of `observation.base_footprint()` plus the fuel for one more step out and the step back, plus `config.UAV_FUEL_RESERVE` of `observation.fuel_capacity`, the policy SHALL fly the UAV toward that cell, up or down to its row first and then along it, and SHALL NOT continue its sweep. | `sim/policy/scout_policy.py::ScoutPolicy.needs_fuel`<br>`sim/policy/scout_policy.py::ScoutPolicy.refuel_action`<br>`sim/policy/scout_policy.py::ScoutPolicy.fuel_to_base`<br>`sim/policy/scout_policy.py::ScoutPolicy.leg_cost`<br>`sim/policy/scout_policy.py::ScoutPolicy.one_more_step` | `tests/policy/test_scout_policy.py::test_a_uav_that_can_only_just_get_home_turns_for_the_base`<br>`tests/policy/test_scout_policy.py::test_a_uav_to_the_right_of_the_base_flies_left_and_one_above_flies_down`<br>`tests/policy/test_scout_policy.py::test_a_uav_with_the_fuel_to_spare_keeps_sweeping`<br>`tests/policy/test_scout_policy.py::test_on_the_base_row_a_uav_that_needs_fuel_flies_along_it`<br>`tests/policy/test_scout_policy.py::test_the_one_step_lookahead_turns_a_uav_home_before_the_way_back_is_too_long`<br>`tests/policy/test_scout_policy.py::test_the_water_a_uav_still_carries_makes_it_turn_for_home_sooner` | draft |
+| **POL-SCT-11**<br>A UAV on the base waits for a full tank | When `observation.fuel` is not `None` and `observation.at_base()` is true and `observation.fuel` is below `observation.fuel_capacity`, the policy SHALL return `Action.stay()`. | `sim/policy/scout_policy.py::ScoutPolicy.needs_fuel`<br>`sim/policy/scout_policy.py::ScoutPolicy.refuel_action`<br>`sim/policy/observation.py::Observation.at_base` | `tests/policy/test_scout_policy.py::test_a_uav_on_the_base_with_a_full_tank_sets_out`<br>`tests/policy/test_scout_policy.py::test_a_uav_on_the_base_with_a_part_empty_tank_waits_to_be_served` | draft |
+| **POL-SCT-12**<br>Without fuel to track or a base to go to, the rule is silent | When `observation.fuel` is `None`, or when `observation.base_footprint()` is empty, the policy SHALL select the same action it would select if POL-SCT-10 and POL-SCT-11 did not exist. | `sim/policy/scout_policy.py::ScoutPolicy.needs_fuel` | `tests/policy/test_scout_policy.py::test_a_capacity_with_no_fuel_reading_is_not_a_reason_to_refuel`<br>`tests/policy/test_scout_policy.py::test_with_no_base_to_go_to_the_rule_never_fires`<br>`tests/policy/test_scout_policy.py::test_with_the_fuel_extension_off_the_rule_never_fires` | draft |
+| **POL-SCT-13**<br>A blocked UAV off its loop steps aside | When the action the policy chose for a UAV is a movement and POL-SCT-6 has trimmed it to `Action.stay()`, and the UAV is not on its sweep loop and POL-SCT-10 does not apply to it, the policy SHALL return a one-cell flight up, or down when the UAV is on the top row, trimmed by POL-SCT-6 in the same way. | `sim/policy/scout_policy.py::ScoutPolicy.select_actions`<br>`sim/policy/scout_policy.py::ScoutPolicy.can_step_aside`<br>`sim/policy/scout_policy.py::ScoutPolicy.step_aside` | `tests/policy/test_scout_policy.py::test_a_head_on_meeting_in_the_base_row_does_not_deadlock`<br>`tests/policy/test_scout_policy.py::test_a_uav_off_its_loop_that_is_blocked_steps_aside`<br>`tests/policy/test_scout_policy.py::test_a_uav_on_its_loop_does_not_give_way`<br>`tests/policy/test_scout_policy.py::test_a_uav_on_its_way_to_refuel_keeps_the_right_of_way`<br>`tests/policy/test_scout_policy.py::test_a_uav_on_the_top_row_steps_aside_downward` | draft |
 
 ## By implementation
 
@@ -141,19 +144,26 @@ when somebody last remembered to update a table.
 | `sim/policy/firefighter.py::FirefighterPolicy.within_sight` | POL-FF-13 |
 | `sim/policy/follow_fire.py::FollowFirePolicy.action_for` | POL-FOL-1, POL-FOL-2, POL-FOL-3 |
 | `sim/policy/observation.py::Observation` | POL-GEN-7 |
-| `sim/policy/observation.py::Observation.at_base` | POL-FF-3 |
+| `sim/policy/observation.py::Observation.at_base` | POL-FF-3, POL-SCT-11 |
 | `sim/policy/observation.py::Observation.base_footprint` | POL-FF-12, POL-SCT-7 |
 | `sim/policy/observation.py::Observation.burning_positions` | POL-FOL-3 |
 | `sim/policy/observation.py::Observation.low_fuel` | POL-DEF-6, POL-FF-1 |
 | `sim/policy/params.py::PolicyParams` | POL-GEN-8 |
 | `sim/policy/random_policy.py::RandomPolicy.action_for` | POL-RND-1, POL-RND-2, POL-RND-3, POL-RND-4, POL-RND-5 |
-| `sim/policy/scout_policy.py::ScoutPolicy.action_for` | POL-SCT-9 |
 | `sim/policy/scout_policy.py::ScoutPolicy.approach_action` | POL-SCT-3 |
+| `sim/policy/scout_policy.py::ScoutPolicy.can_step_aside` | POL-SCT-13 |
 | `sim/policy/scout_policy.py::ScoutPolicy.deconflict` | POL-SCT-6, POL-SCT-7 |
 | `sim/policy/scout_policy.py::ScoutPolicy.flying_zone` | POL-SCT-2 |
+| `sim/policy/scout_policy.py::ScoutPolicy.fuel_to_base` | POL-SCT-10 |
 | `sim/policy/scout_policy.py::ScoutPolicy.lanes` | POL-SCT-1 |
+| `sim/policy/scout_policy.py::ScoutPolicy.leg_cost` | POL-SCT-10 |
 | `sim/policy/scout_policy.py::ScoutPolicy.loop_action` | POL-SCT-2, POL-SCT-4, POL-SCT-5 |
-| `sim/policy/scout_policy.py::ScoutPolicy.sweep_columns` | POL-SCT-2, POL-SCT-5, POL-SCT-9 |
+| `sim/policy/scout_policy.py::ScoutPolicy.needs_fuel` | POL-SCT-10, POL-SCT-11, POL-SCT-12 |
+| `sim/policy/scout_policy.py::ScoutPolicy.one_more_step` | POL-SCT-10 |
+| `sim/policy/scout_policy.py::ScoutPolicy.refuel_action` | POL-SCT-10, POL-SCT-11 |
+| `sim/policy/scout_policy.py::ScoutPolicy.select_actions` | POL-SCT-13 |
+| `sim/policy/scout_policy.py::ScoutPolicy.step_aside` | POL-SCT-13 |
+| `sim/policy/scout_policy.py::ScoutPolicy.sweep_columns` | POL-SCT-2, POL-SCT-5 |
 | `sim/policy/scout_policy.py::ScoutPolicy.within_sight` | POL-SCT-8 |
 
 ## Gaps
@@ -236,4 +246,6 @@ The trace is currently broken. `python3 tools/trace.py check` exits non-zero.
 
 - [spec] specs/policies/movement.md: specs/policies/movement.md:22 (POL-MOV-1): has no yaml block
 - [spec] specs/policies/movement.md: specs/policies/movement.md:27 (POL-MOV-2): has no yaml block
+- [spec] specs/policies/scout.md: specs/policies/scout.md:212 (POL-SCT-9): has no yaml block
 - [orphan-spec] specs/policies/movement.md: there is no registered policy named 'movement'
+- [unknown-id] tests/policy/test_scout_policy.py::test_a_lane_that_cannot_hold_a_loop_is_held: verifies('POL-SCT-9') names a requirement no specification defines

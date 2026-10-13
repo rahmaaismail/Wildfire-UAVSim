@@ -1,3 +1,4 @@
+"""Reconnaissance policy: every UAV sweeps a lane of its own, so a team covers the map without crowding."""
 
 # python libraries
 
@@ -9,6 +10,8 @@ import math
 import config
 
 from config import ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_UP
+
+from sim import formulas
 
 from .action import Action
 from .base import Policy, avoid, flight_path, step_towards
@@ -48,6 +51,15 @@ class ScoutPolicy(Policy):
     than the UAV can see, and the home base is shared airspace. The base matters here because the whole
     team launches on it.
 
+    Fuel comes before everything else. A UAV works out what it would cost to fly home from where it is,
+    and turns for the base once its tank holds no more than that plus UAV_FUEL_RESERVE of a full one,
+    so the reserve is a margin on top of the real distance rather than a flat share that a UAV far
+    from home can use up on the way. Once on the base it holds position until the tank is full, which
+    is what lets the base serve it, and then rejoins its loop at the nearest sweep column. The loop
+    keeps no memory of where the UAV had got to, so every sortie starts from the base row; that is
+    the price of a policy with no state, and it means a lap only completes when one tank is enough
+    for it. The rule does nothing when fuel is not being tracked or there is no base to fly to.
+
     The strips are computed from the UAVs in the call, so a UAV lost mid-run makes the survivors' strips
     wider and shifts them. That is correct but not free: a UAV may have to cross ground its old
     neighbour was working. Run it unmanaged (--managing none) to see the policy on its own, because
@@ -66,8 +78,16 @@ class ScoutPolicy(Policy):
 
         actions = []
         for observation in observations:
-            action = self.action_for(observation, lanes[observation.uav_id])
-            action = self.deconflict(observation, action, reserved)
+            lane = lanes[observation.uav_id]
+            wanted = self.action_for(observation, lane)
+            action = self.deconflict(observation, wanted, reserved)
+
+            # a UAV that is blocked and has somewhere to be steps out of the way, because two UAVs that meet
+            # head on in a single row, one going out and one coming home, would otherwise each hold position
+            # for ever waiting for the other, and the one coming home would run dry in sight of the base
+            if wanted.is_movement() and not action.is_movement() and self.can_step_aside(observation, lane):
+                action = self.deconflict(observation, self.step_aside(observation), reserved)
+
             reserved.update(flight_path(observation.pos, action))
             actions.append(action)
         return actions
@@ -133,6 +153,10 @@ class ScoutPolicy(Policy):
         columns = self.sweep_columns(lane)
         if columns is None:
             return Action.stay()
+
+        # fuel outranks the sweep: an empty tank costs a UAV every health point it has
+        if self.needs_fuel(observation):
+            return self.refuel_action(observation)
 
         action = self.loop_action(observation.pos, columns)
         if action is None:
@@ -207,6 +231,88 @@ class ScoutPolicy(Policy):
             if pos == start:
                 return cells
             cells.append(pos)
+
+    # --- getting out of each other's way ---------------------------------------------------------------
+
+    # whether a blocked UAV is the one that should give way: it is off its loop, so a step sideways costs it
+    # nothing it had been guaranteed, and it is not on its way to refuel, which keeps the right of way
+    def can_step_aside(self, observation, lane):
+        columns = self.sweep_columns(lane)
+        if columns is None or self.needs_fuel(observation):
+            return False
+        return self.loop_action(observation.pos, columns) is None
+
+    # one cell up, or one cell down when it is already on the top row. The approach to the loop runs along
+    # the UAV's own row, so after stepping aside it simply carries on along the next one.
+    def step_aside(self, observation):
+        _, rows = self.extent()
+        return Action(ACTION_UP, 1) if observation.pos[1] < rows - 1 else Action(ACTION_DOWN, 1)
+
+    # --- fuel ------------------------------------------------------------------------------------------
+
+    # the speed the policy flies at when it is going somewhere rather than sweeping: as fast as a UAV can
+    # be sent, which within_sight() caps at what it can see
+    def cruise_speed(self):
+        return min(config.UAV_SPEED, config.UAV_OBSERVATION_RADIUS)
+
+    # the fuel that flying 'distance' cells in a straight line costs at cruise speed, step by step the way
+    # the model charges it: whole steps at full speed and one shorter one for what is left over. 'water_load'
+    # is the share of a full load the UAV is carrying, because the model multiplies the whole cost of a step
+    # by it, and a scout that never drops what it launched with pays that surcharge on every step of every
+    # flight, so an estimate that left it out would run short by exactly that much.
+    def leg_cost(self, distance, water_load=0.0):
+        speed = self.cruise_speed()
+        if speed <= 0 or distance <= 0:
+            return 0.0
+        whole, rest = divmod(distance, speed)
+        return (whole * formulas.fuel_burn_cost(speed, water_load=water_load)
+                + (formulas.fuel_burn_cost(rest, water_load=water_load) if rest else 0.0))
+
+    # the fuel that one more step away from the base costs, counting the step back as well. A UAV that only
+    # asked whether it could get home from where it stands would spend its margin one step at a time, because
+    # each step out makes the way back longer by as much as it cost to fly, and would turn for home too late
+    # by exactly that much. Looking one step ahead is what keeps a UAV that sets off from the base with a full
+    # tank from being left, a step later, with a tank that no longer reaches it.
+    def one_more_step(self, water_load=0.0):
+        speed = self.cruise_speed()
+        return 2 * formulas.fuel_burn_cost(speed, water_load=water_load) if speed > 0 else 0.0
+
+    # the cell of the home base footprint nearest to 'pos', counting distance the way the UAVs fly
+    def nearest_base_cell(self, observation):
+        x, y = observation.pos
+        return min(observation.base_footprint(), key=lambda cell: abs(cell[0] - x) + abs(cell[1] - y))
+
+    # the fuel it would take to fly from here to the base: up or down to its row first, then along it,
+    # which is the route refuel_action() flies
+    def fuel_to_base(self, observation):
+        base_x, base_y = self.nearest_base_cell(observation)
+        x, y = observation.pos
+        load = observation.water_fraction()
+        return self.leg_cost(abs(base_y - y), load) + self.leg_cost(abs(base_x - x), load)
+
+    # whether this UAV has to put refuelling ahead of sweeping: its tank holds no more than the fuel to fly
+    # home plus one more step out and back plus the reserve, or it is on the base and the tank is not yet
+    # full. False whenever fuel is not being tracked or there is no base to go to, which is what lets the
+    # policy predate the fuel extension unchanged.
+    def needs_fuel(self, observation):
+        if observation.fuel is None or not observation.fuel_capacity or not observation.base_footprint():
+            return False
+        if observation.at_base():
+            return observation.fuel < observation.fuel_capacity
+        reserve = config.UAV_FUEL_RESERVE * observation.fuel_capacity
+        return (observation.fuel
+                <= self.fuel_to_base(observation) + self.one_more_step(observation.water_fraction()) + reserve)
+
+    # flies a UAV that needs fuel to the base, vertically first and then horizontally, so that it stays in
+    # its own lane for as long as it can, and holds it there until the base has filled the tank
+    def refuel_action(self, observation):
+        if observation.at_base():
+            return Action.stay()
+        base_x, base_y = self.nearest_base_cell(observation)
+        x, y = observation.pos
+        if y != base_y:
+            return Action(ACTION_UP if base_y > y else ACTION_DOWN, abs(base_y - y))
+        return Action(ACTION_RIGHT if base_x > x else ACTION_LEFT, abs(base_x - x))
 
     # --- keeping the team apart ------------------------------------------------------------------------
 

@@ -66,9 +66,10 @@ built on lanes rather than on watching its neighbours.
 - `config.ACTIVATE_POSITION_ERROR` is off. With it on, `observation.pos` is a measurement and a UAV that is
   really on the loop is told it is somewhere else, so it can leave the zone; the guarantee then holds for the
   measured position only.
-- The guarantee covers UAVs on their loops. A UAV on its way to the loop (POL-SCT-3) can be outside its zone
-  and is protected by POL-SCT-6 alone, so separation can be below `SECURITY_DISTANCE` for the first steps of a
-  run, while the team leaves the base.
+- The guarantee covers UAVs on their loops. A UAV on its way to the loop (POL-SCT-3), or on its way to the
+  base to refuel (POL-SCT-10), can be outside its zone and is protected by POL-SCT-6 alone, so separation can
+  be below `SECURITY_DISTANCE` for the first steps of a run, while the team leaves the base, and on every
+  refuelling trip.
 
 ```yaml
 id: POL-SCT-2
@@ -132,10 +133,12 @@ much of a run's budget it uses, are properties of a whole run that this requirem
 - `config.SMOKE_OCCLUDES_OBSERVATION` is off. With it on a cell inside the window can still be hidden, so the
   window covers the lane and the UAV does not necessarily see all of it.
 - `config.ACTIVATE_POSITION_ERROR` is off, for the reason given under POL-SCT-2.
-- `config.ACTIVATE_FUEL` is off. The policy does not manage fuel, and at the default settings a tank lasts
-  about twenty steps of flying at full speed, which is far short of a lap. This is the largest gap between
-  this requirement and a shipped configuration, and it is a reason to specify a fuel rung before the policy is
-  flown under the defaults.
+- A tank is enough for the lap. The policy keeps no memory of where a UAV had got to, so after refuelling it
+  rejoins its loop at the sweep column nearest the base row and starts again from there. A lane whose loop
+  needs more fuel than one tank holds is therefore never finished: the UAV sweeps the part of it nearest the
+  base, refuels, and sweeps the same part again. With the shipped defaults (`UAV_FUEL` of 150 on a 100 by 100
+  grid with the base a quarter of the way in) this is the case, and the policy neither runs dry nor covers
+  more than a few percent of the map. It is a limit on what the policy can achieve, not on its safety.
 
 ```yaml
 id: POL-SCT-5
@@ -221,6 +224,106 @@ id: POL-SCT-9
 satisfied_by:
   - sim/policy/scout_policy.py::ScoutPolicy.action_for
   - sim/policy/scout_policy.py::ScoutPolicy.sweep_columns
+verified_by: test
+status: draft
+```
+
+## POL-SCT-10 — Fuel outranks the sweep
+
+> When `observation.fuel` is not `None` and the home base exists, and `observation.fuel` is at most the fuel
+> to fly from `observation.pos` to the nearest cell of `observation.base_footprint()` plus the fuel for one
+> more step out and the step back, plus `config.UAV_FUEL_RESERVE` of `observation.fuel_capacity`, the policy
+> SHALL fly the UAV toward that cell, up or down to its row first and then along it, and SHALL NOT continue
+> its sweep.
+
+A UAV that runs dry loses every health point it has. The reserve of the firefighter is a flat share of the
+tank, which a UAV far from home can use up on the way back, so this rule prices the way home instead.
+
+The fuel to fly home is the cost the model will charge, step by step, at cruise speed (the smaller of
+`config.UAV_SPEED` and `config.UAV_OBSERVATION_RADIUS`, which is what POL-SCT-8 allows), multiplied by the
+payload surcharge for the water the UAV still carries. A scout never drops what it launched with, so leaving
+the surcharge out makes the estimate short by `config.UAV_FUEL_WATER_PENALTY` of the whole trip.
+
+One more step out and back is included because each step away from the base makes the way back longer by as
+much as it cost to fly. A UAV that only asked whether it could get home from where it stands would spend its
+margin one step at a time and turn for home too late by exactly that much.
+
+**Assumptions:**
+
+- The lane is within reach of the base: the fuel to fly from the base to the start of the lane and back,
+  plus one more step and the reserve, is at most `config.UAV_FUEL`. When it is not, the UAV turns back before
+  it arrives, refuels and sets out again, and sweeps nothing.
+- A flight trimmed by POL-SCT-6 burns the idle rate while it waits, which the estimate does not count. The
+  reserve is what pays for it, so a reserve of zero is not safe in a crowded run.
+- `config.ACTIVATE_POSITION_ERROR` is off. With it on, the distance to the base is measured from a wrong
+  position, and the margin is as wide as the reserve and no wider.
+
+```yaml
+id: POL-SCT-10
+satisfied_by:
+  - sim/policy/scout_policy.py::ScoutPolicy.needs_fuel
+  - sim/policy/scout_policy.py::ScoutPolicy.refuel_action
+  - sim/policy/scout_policy.py::ScoutPolicy.fuel_to_base
+  - sim/policy/scout_policy.py::ScoutPolicy.leg_cost
+  - sim/policy/scout_policy.py::ScoutPolicy.one_more_step
+verified_by: test
+status: draft
+```
+
+## POL-SCT-11 — A UAV on the base waits for a full tank
+
+> When `observation.fuel` is not `None` and `observation.at_base()` is true and `observation.fuel` is below
+> `observation.fuel_capacity`, the policy SHALL return `Action.stay()`.
+
+Refuelling is not an action: standing on the base is what triggers it, and the base serves one UAV at a time
+over `config.BASE_REFUEL_STEPS`. A UAV that left as soon as it landed would never stay long enough to be
+served. Waiting for a full tank, and not merely a tank that clears POL-SCT-10, is what makes a sortie as long
+as it can be.
+
+```yaml
+id: POL-SCT-11
+satisfied_by:
+  - sim/policy/scout_policy.py::ScoutPolicy.needs_fuel
+  - sim/policy/scout_policy.py::ScoutPolicy.refuel_action
+  - sim/policy/observation.py::Observation.at_base
+verified_by: test
+status: draft
+```
+
+## POL-SCT-12 — Without fuel to track or a base to go to, the rule is silent
+
+> When `observation.fuel` is `None`, or when `observation.base_footprint()` is empty, the policy SHALL select
+> the same action it would select if POL-SCT-10 and POL-SCT-11 did not exist.
+
+With the fuel extension off there is nothing to run out of, and with the firefighting extension off there is
+no base to refuel at. A policy that acted on either would fly to a base that is not there, or hold position
+for a tank it cannot fill. It is also what keeps every run recorded before the fuel rule existed unchanged.
+
+```yaml
+id: POL-SCT-12
+satisfied_by:
+  - sim/policy/scout_policy.py::ScoutPolicy.needs_fuel
+verified_by: test
+status: draft
+```
+
+## POL-SCT-13 — A blocked UAV off its loop steps aside
+
+> When the action the policy chose for a UAV is a movement and POL-SCT-6 has trimmed it to `Action.stay()`,
+> and the UAV is not on its sweep loop and POL-SCT-10 does not apply to it, the policy SHALL return a one-cell
+> flight up, or down when the UAV is on the top row, trimmed by POL-SCT-6 in the same way.
+
+Two UAVs that meet head on in a single row, one going out to its lane and one coming home, are each trimmed to
+a stop by the other. Neither can ever move again, and the one coming home runs dry in sight of the base. It
+happened: it is the reason this requirement exists. The UAV that is refuelling keeps the right of way, and a
+UAV on its loop does not give way, so that its guarantee under POL-SCT-2 is not traded for a cell.
+
+```yaml
+id: POL-SCT-13
+satisfied_by:
+  - sim/policy/scout_policy.py::ScoutPolicy.select_actions
+  - sim/policy/scout_policy.py::ScoutPolicy.can_step_aside
+  - sim/policy/scout_policy.py::ScoutPolicy.step_aside
 verified_by: test
 status: draft
 ```
