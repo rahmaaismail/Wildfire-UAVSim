@@ -1,0 +1,160 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.2, pytest-9.1.1, pluggy-1.6.0
+rootdir: /workspaces/Wildfire-UAVSim
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.15.1
+collected 1408 items
+
+tests/agents/test_fire_start.py ................                         [  1%]
+tests/agents/test_firefighting_extension.py ............................ [  3%]
+..                                                                       [  3%]
+tests/agents/test_uav_collisions.py .................................... [  5%]
+...............                                                          [  6%]
+tests/agents/test_uav_fuel.py ...............................F....       [  9%]
+tests/agents/test_uav_position_error.py ............................     [ 11%]
+tests/agents/test_uav_registry.py .............                          [ 12%]
+tests/agents/test_uav_smoke_occlusion.py .............                   [ 13%]
+tests/agents/test_uav_speed.py ..............                            [ 14%]
+tests/cli/test_managing_options.py ......s............                   [ 15%]
+tests/cli/test_run_length.py ........                                    [ 16%]
+tests/cli/test_seeding.py ........                                       [ 16%]
+tests/experiments/test_paramspace_design.py ......................       [ 18%]
+tests/gui/test_control_gate.py ...........                               [ 19%]
+tests/gui/test_portrayal.py ..............s......                        [ 20%]
+tests/gui/test_status_sidebar.py ....................................... [ 23%]
+.....................                                                    [ 24%]
+tests/managing/test_analyze.py ......................                    [ 26%]
+tests/managing/test_analyze_cautious.py .........                        [ 27%]
+tests/managing/test_component_contract.py .............................. [ 29%]
+........                                                                 [ 29%]
+tests/managing/test_contract.py .......................                  [ 31%]
+tests/managing/test_independence.py .................................... [ 33%]
+..........                                                               [ 34%]
+tests/managing/test_loop.py ................                             [ 35%]
+tests/managing/test_plan_defensive.py .......                            [ 36%]
+tests/managing/test_plan_heuristic.py ..................                 [ 37%]
+tests/managing/test_plan_static.py ........                              [ 38%]
+tests/managing/test_registry.py ................                         [ 39%]
+tests/managing/test_remote.py ..........................                 [ 41%]
+tests/managing/test_systems.py ......................................... [ 44%]
+....................                                                     [ 45%]
+tests/policy/test_defend_base_policy.py .............                    [ 46%]
+tests/policy/test_disperse_policy.py ............                        [ 47%]
+tests/policy/test_firefighter_policy.py ................................ [ 49%]
+....                                                                     [ 49%]
+tests/policy/test_follow_fire_policy.py ...................              [ 51%]
+tests/policy/test_observation.py ....................                    [ 52%]
+tests/policy/test_policy_interface.py .................................. [ 54%]
+...................................................                      [ 58%]
+tests/policy/test_random_policy.py ...........                           [ 59%]
+tests/policy/test_scout_firefighter_policy.py ......................     [ 60%]
+tests/policy/test_scout_policy.py ...................................... [ 63%]
+........................................................................ [ 68%]
+...........................................................              [ 72%]
+tests/policy/test_super_policy.py ....................                   [ 74%]
+tests/test_adapters.py .........................                         [ 76%]
+tests/test_adaptive_model.py .................................           [ 78%]
+tests/test_config_validation.py ........................................ [ 81%]
+.....................................................                    [ 85%]
+tests/test_fire_spread.py .............................................. [ 88%]
+......                                                                   [ 88%]
+tests/test_reporting.py ...............                                  [ 89%]
+tests/test_reproducibility.py ........                                   [ 90%]
+tests/test_run_lifecycle.py ......                                       [ 90%]
+tests/test_smoke.py ..........F............                              [ 92%]
+tests/test_traceability.py F..F..................................F.      [ 95%]
+tests/test_wind.py .........................                             [ 97%]
+tests/tools/test_sweep.py .........................................      [100%]
+
+=================================== FAILURES ===================================
+___________________ test_low_fuel_is_reported_at_the_reserve ___________________
+
+observation = <function observation.<locals>._make at 0x7a9c7cf73060>
+
+    def test_low_fuel_is_reported_at_the_reserve(observation):
+        at_reserve = observation(pos=(4, 4), fuel=25.0, fuel_capacity=100.0)
+        above_it = observation(pos=(4, 4), fuel=26.0, fuel_capacity=100.0)
+    
+>       assert at_reserve.low_fuel()      # UAV_FUEL_RESERVE is 0.25 in config.py
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       assert False
+E        +  where False = low_fuel()
+E        +    where low_fuel = Observation(uav_id=0, pos=(4, 4), cells=[], uav_positions=[], occluded=[], fuel=25.0, fuel_capacity=100.0, has_water=False, water=0, water_capacity=None, base_pos=None, base_cells=[], building_positions=[]).low_fuel
+
+tests/agents/test_uav_fuel.py:460: AssertionError
+_ test_the_smoke_leans_harder_on_the_wind_than_the_fire_does_at_the_shipped_settings _
+
+southerly = 'SOUTH'
+
+    def test_the_smoke_leans_harder_on_the_wind_than_the_fire_does_at_the_shipped_settings(southerly):
+        # 'more impacted by wind than the fire' in the one form that can be measured: the ratio of the weight
+        # given to a cell downwind and one the same distance crosswind. Note this comes from SMOKE_MU being
+        # above MU and not from a different wind law -- the two share cell_weight(), so at equal mu they agree,
+        # which the next test pins
+        smoke_kernel = smoke.build_smoke_kernel(3, config.SMOKE_MU, "SOUTH")
+        fire_kernel_weight = fire_spread.cell_weight
+    
+        def skew(weight_at):
+            return weight_at(0, 2) / weight_at(2, 0)
+    
+        smoke_skew = smoke_kernel[3, 5] / smoke_kernel[5, 3]
+        fire_skew = skew(lambda dx, dy: fire_kernel_weight(dx, dy, 3, config.MU, "SOUTH"))
+>       assert smoke_skew > fire_skew
+E       assert np.float64(37.00000000000001) > 37.00000000000001
+
+tests/test_smoke.py:173: AssertionError
+_____________________ test_every_specification_file_parses _____________________
+
+findings = [Finding(kind='spec', where='specs/policies/movement.md', message='specs/policies/movement.md:22 (POL-MOV-1): has no y...ding(kind='orphan-spec', where='specs/policies/movement.md', message="there is no registered policy named 'movement'")]
+
+    def test_every_specification_file_parses(findings):
+        problems = of_kind(findings, "spec")
+>       assert not problems, f"specifications that could not be read:\n{report(problems)}"
+E       AssertionError: specifications that could not be read:
+E           [spec] specs/policies/movement.md: specs/policies/movement.md:22 (POL-MOV-1): has no yaml block
+E           [spec] specs/policies/movement.md: specs/policies/movement.md:27 (POL-MOV-2): has no yaml block
+E       assert not [Finding(kind='spec', where='specs/policies/movement.md', message='specs/policies/movement.md:22 (POL-MOV-1): has no y...nd='spec', where='specs/policies/movement.md', message='specs/policies/movement.md:27 (POL-MOV-2): has no yaml block')]
+
+tests/test_traceability.py:52: AssertionError
+_______________ test_every_registered_policy_has_a_specification _______________
+
+findings = [Finding(kind='spec', where='specs/policies/movement.md', message='specs/policies/movement.md:22 (POL-MOV-1): has no y...ding(kind='orphan-spec', where='specs/policies/movement.md', message="there is no registered policy named 'movement'")]
+
+    def test_every_registered_policy_has_a_specification(findings):
+        problems = of_kind(findings, "missing-spec", "orphan-spec")
+>       assert not problems, f"policies and specifications do not line up:\n{report(problems)}"
+E       AssertionError: policies and specifications do not line up:
+E           [orphan-spec] specs/policies/movement.md: there is no registered policy named 'movement'
+E       assert not [Finding(kind='orphan-spec', where='specs/policies/movement.md', message="there is no registered policy named 'movement'")]
+
+tests/test_traceability.py:68: AssertionError
+___________________ test_the_committed_report_is_up_to_date ____________________
+
+    def test_the_committed_report_is_up_to_date():
+        # the matrix is generated, so a stale one is a stale claim about what the evidence covers
+        _, requirements, verified_by, untagged = trace.check()
+        expected = trace.build_report(requirements, verified_by, untagged, [])
+        assert trace.REPORT_PATH.exists(), "run `python3 tools/trace.py report`"
+>       assert trace.REPORT_PATH.read_text(encoding="utf-8") == expected, \
+            "specs/TRACEABILITY.md is out of date, run `python3 tools/trace.py report`"
+E       AssertionError: specs/TRACEABILITY.md is out of date, run `python3 tools/trace.py report`
+E       assert "# Traceabili... 'movement'\n" == '# Traceabili...ot_grouped`\n'
+E         
+E         Skipping 52655 identical leading characters in diff, use -v to show
+E           t_grouped`
+E         + 
+E         + ## Findings
+E         + 
+E         + The trace is currently broken. `python3 tools/trace.py check` exits non-zero....
+E         
+E         ...Full output truncated (4 lines hidden), use '-vv' to show
+
+tests/test_traceability.py:293: AssertionError
+=========================== short test summary info ============================
+FAILED tests/agents/test_uav_fuel.py::test_low_fuel_is_reported_at_the_reserve
+FAILED tests/test_smoke.py::test_the_smoke_leans_harder_on_the_wind_than_the_fire_does_at_the_shipped_settings
+FAILED tests/test_traceability.py::test_every_specification_file_parses - Ass...
+FAILED tests/test_traceability.py::test_every_registered_policy_has_a_specification
+FAILED tests/test_traceability.py::test_the_committed_report_is_up_to_date - ...
+================== 5 failed, 1401 passed, 2 skipped in 23.91s ==================

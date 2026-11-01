@@ -119,6 +119,83 @@ def test_lanes_never_share_a_column_and_run_left_to_right_by_uav_id(policy, obse
     assert ordered[-1][1] == columns - 1
 
 
+# --- a team that loses a UAV -------------------------------------------------
+#
+# POL-SCT-1 says what happens to the lanes when a UAV is lost: the survivors' lanes widen and shift, and a UAV
+# may have to cross ground its old neighbour was working. The assurance case lists that as a defeater of the
+# lanes claim, because no run in the final batch lost a UAV and so the situation was never exercised. These
+# tests exercise it with the stand-in simulator, losing a UAV part way through a run.
+
+
+def lose_one_uav(policy, observation, count, lost_id, steps_before, steps_after, seed=None):
+    """Fly a team of 'count' for 'steps_before' steps, remove 'lost_id', and fly the survivors on.
+
+    Every UAV starts at the first cell of its own loop, or at a random cell of it when a seed is given, which
+    puts the team out of step and so makes the survivors cross each other's ground at different moments.
+    Returns the history before the loss, the history after it, and the survivors' lanes once the loss has
+    been taken into account.
+    """
+    lanes = lanes_for(policy, observation, count)
+    if seed is None:
+        start = {uav_id: start_of(policy, lane) for uav_id, lane in lanes.items()}
+    else:
+        rng = random.Random(seed)
+        start = {uav_id: rng.choice(policy.sweep_loop(lane)) for uav_id, lane in lanes.items()}
+
+    before = fly(policy, observation, start, steps=steps_before)
+    survivors = {uav_id: pos for uav_id, pos in before[-1].items() if uav_id != lost_id}
+    after = fly(policy, observation, survivors, steps=steps_after)
+
+    new_lanes = policy.lanes([observation(pos=pos, uav_id=uav_id) for uav_id, pos in survivors.items()])
+    return before, after, new_lanes
+
+
+@pytest.mark.verifies("POL-SCT-1")
+@pytest.mark.parametrize("lost_id", [0, 3, 7])
+def test_the_lanes_of_the_survivors_of_a_lost_uav_still_tile_the_grid_without_overlap(policy, observation, shape,
+                                                                                      lost_id):
+    shape(100, 100, 4, 6)
+    survivors = [uav_id for uav_id in range(8) if uav_id != lost_id]
+
+    lanes = policy.lanes([observation(pos=(0, 0), uav_id=uav_id) for uav_id in survivors])
+
+    ordered = [lanes[uav_id] for uav_id in sorted(survivors)]
+    assert ordered[0][0] == 0 and ordered[-1][1] == config.HEIGHT - 1
+    for (_, right_edge), (left_edge, _) in zip(ordered, ordered[1:]):
+        assert left_edge == right_edge + 1
+    # and the survivors' lanes are wider than they were, which is what the loss costs them
+    assert all(width >= 100 // 8 for width in (right - left + 1 for left, right in ordered))
+
+
+@pytest.mark.verifies("POL-SCT-6")
+@pytest.mark.parametrize("seed", range(12))
+@pytest.mark.parametrize("lost_id", [0, 3, 7])
+def test_new_lanes_keep_the_survivors_of_a_lost_uav_off_each_others_cells_while_they_cross_over(policy, observation,
+                                                                                             shape, lost_id, seed):
+    shape(100, 100, 4, 6)
+
+    before, after, _ = lose_one_uav(policy, observation, count=8, lost_id=lost_id, steps_before=20,
+                                    steps_after=150, seed=seed)
+
+    # the whole of the run, before the loss and after it: the collision the simulator scores is two UAVs on
+    # one cell, and the survivors have to leave ground their old neighbour was working to reach their lanes
+    assert all(len(set(positions.values())) == len(positions) for positions in before + after)
+
+
+@pytest.mark.verifies("POL-SCT-3")
+@pytest.mark.parametrize("seed", range(12))
+@pytest.mark.parametrize("lost_id", [0, 3, 7])
+def test_every_survivor_of_a_lost_uav_is_back_on_a_loop_of_its_new_lane(policy, observation, shape, lost_id, seed):
+    shape(100, 100, 4, 6)
+
+    _, after, new_lanes = lose_one_uav(policy, observation, count=8, lost_id=lost_id, steps_before=20,
+                                       steps_after=150, seed=seed)
+
+    for uav_id, pos in after[-1].items():
+        columns = policy.sweep_columns(new_lanes[uav_id])
+        assert policy.loop_action(pos, columns) is not None, f"UAV {uav_id} at {pos} never rejoined a loop"
+
+
 # --- staying in the flying zone, which is the separation claim --------------
 
 

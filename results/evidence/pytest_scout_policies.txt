@@ -1,0 +1,13 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.2, pytest-9.1.1, pluggy-1.6.0
+rootdir: /workspaces/Wildfire-UAVSim
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collected 191 items
+
+tests/policy/test_scout_policy.py ...................................... [ 19%]
+........................................................................ [ 57%]
+...........................................................              [ 88%]
+tests/policy/test_scout_firefighter_policy.py ......................     [100%]
+
+============================= 191 passed in 8.52s ==============================

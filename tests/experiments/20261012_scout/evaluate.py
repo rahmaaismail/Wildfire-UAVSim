@@ -66,6 +66,8 @@ SCENARIOS = {
     "A + payload surcharge": {**A, "UAV_FUEL_WATER_PENALTY": 0.3},
     "A + no reserve": {**A, "UAV_FUEL_RESERVE": 0.0},
     "B": B,
+    "final": {**B, "BATCH_SIZE": 64, "WATER_EXTINGUISH_PROB_CENTRE": 0.855, "WATER_EXTINGUISH_PROB_EDGE": 0.54},
+    "final + position error": {**B, "BATCH_SIZE": 64, "ACTIVATE_POSITION_ERROR": True},
 }
 
 

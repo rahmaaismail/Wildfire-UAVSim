@@ -1,0 +1,10 @@
+21:05:17 INFO    [wildfire] batch complete: 1000 ok, 0 failed, 262.28s wall
+21:05:17 INFO    [wildfire] MR1 total   : mean=19.3293 min=0.0000 max=56.8148
+21:05:17 INFO    [wildfire] MR2         : mean=1741.86 min=766 max=1792
+21:05:17 INFO    [wildfire] collisions  : mean=0.00 min=0 max=0 | UAVs lost: mean=0.00 max=0
+21:05:17 INFO    [wildfire] out of fuel : mean=0.00 max=0 | tank left: mean=769.7 min=702.8
+21:05:17 INFO    [wildfire] burning cells: mean=1021.3 min=0 max=2392
+21:05:17 INFO    [wildfire] run time    : mean=1.05s total=1045.69s
+21:05:17 INFO    [wildfire] outcome     : 919 WON, 81 LOST of 1000 run(s) | lost proportion=8.1%
+21:05:17 INFO    [wildfire] ==============================================================
+21:05:17 INFO    [wildfire] results written to results/final_4_firefighter_only.json
