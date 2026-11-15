@@ -1,0 +1,5 @@
+[spec] specs/policies/movement.md: specs/policies/movement.md:22 (POL-MOV-1): has no yaml block
+[spec] specs/policies/movement.md: specs/policies/movement.md:27 (POL-MOV-2): has no yaml block
+[orphan-spec] specs/policies/movement.md: there is no registered policy named 'movement'
+
+3 findings

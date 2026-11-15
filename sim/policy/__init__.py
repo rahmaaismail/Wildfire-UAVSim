@@ -30,6 +30,8 @@ from .disperse import DispersePolicy
 from .firefighter import FirefighterPolicy
 from .follow_fire import FollowFirePolicy
 from .random_policy import RandomPolicy
+from .scout_policy import ScoutPolicy
+from .scout_firefighter_policy import ScoutFirefighterPolicy
 
 # every policy the simulator knows about, and every policy the managing system may allocate to a UAV
 REGISTERED = (
@@ -38,6 +40,8 @@ REGISTERED = (
     FirefighterPolicy,
     DefendBasePolicy,
     DispersePolicy,
+    ScoutPolicy,
+    ScoutFirefighterPolicy,
 )
 
 # name -> class, used by the --policy option and the web interface dropdown
@@ -56,6 +60,6 @@ def build_policy(name):
 from .super_policy import SuperPolicy
 
 __all__ = ["Action", "Policy", "Observation", "PolicyParams", "RandomPolicy", "FollowFirePolicy",
-           "FirefighterPolicy", "DefendBasePolicy", "DispersePolicy", "SuperPolicy",
+           "FirefighterPolicy", "DefendBasePolicy", "DispersePolicy", "ScoutPolicy", "SuperPolicy",
            "POLICIES", "REGISTERED", "build_policy", "avoid", "by_distance", "flight_path", "halo",
            "nearest", "step_towards"]

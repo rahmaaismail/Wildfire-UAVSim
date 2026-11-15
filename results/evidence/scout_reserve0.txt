@@ -1,0 +1,10 @@
+20:55:00 INFO    [wildfire] batch complete: 1000 ok, 0 failed, 236.48s wall
+20:55:00 INFO    [wildfire] MR1 total   : mean=16.1271 min=0.0000 max=69.9259
+20:55:00 INFO    [wildfire] MR2         : mean=89.66 min=65 max=117
+20:55:00 INFO    [wildfire] collisions  : mean=0.00 min=0 max=0 | UAVs lost: mean=0.00 max=0
+20:55:00 INFO    [wildfire] out of fuel : mean=0.00 max=0 | tank left: mean=349.9 min=244.1
+20:55:00 INFO    [wildfire] burning cells: mean=988.2 min=0 max=2425
+20:55:00 INFO    [wildfire] run time    : mean=0.94s total=942.18s
+20:55:00 INFO    [wildfire] outcome     : 473 WON, 527 LOST of 1000 run(s) | lost proportion=52.7%
+20:55:00 INFO    [wildfire] ==============================================================
+20:55:00 INFO    [wildfire] results written to results/final_2b_scout_reserve0.json

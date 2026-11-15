@@ -262,7 +262,7 @@ SMOKE_PRE_DISPELLING_COUNTER = 2
 # (2.10 against 2.51) for that reason. Fewer collisions here means a team doing nothing.
 # **Bounds:** `True` / `False`. Ignored when `ACTIVATE_SMOKE` is False, since there is then no smoke to see
 # through.
-SMOKE_OCCLUDES_OBSERVATION = True
+SMOKE_OCCLUDES_OBSERVATION = False
 
 # ### `SMOKE_MU` -- wind strength for the smoke, the analogue of `MU` for the fire.
 # The fraction of the remaining density that blowing downwind adds, and blowing crosswind or upwind takes
@@ -298,7 +298,7 @@ SMOKE_OCCLUSION_THRESHOLD = 0.5
 # ### `NUM_AGENTS` -- how many UAVs fly over the forest area.
 # **Bounds:** integer `>= 0`, and no larger than `WIDTH * HEIGHT`, since the team launches unstacked.
 # Must be `0` when `PROBABILITY_MAP` is True.
-NUM_AGENTS = 4
+NUM_AGENTS = 8
 
 # ### `N_ACTIONS` -- size of the movement action space a policy draws from.
 # The four movement directions below are indices 0..3. Holding position and dumping water sit outside
@@ -348,7 +348,7 @@ N_OBSERVATIONS = side * side
 # flying anywhere, and it is not what decides whether two UAVs collided -- that is a matter of sharing a
 # cell, see `UAV_HP` below.
 # **Bounds:** number `>= 0`. `0` never scores; more than the grid diagonal scores every pair every step.
-SECURITY_DISTANCE = 2
+SECURITY_DISTANCE = 6
 
 # ### `UAV_HP` -- health points each UAV starts the run with.
 # Two or more UAVs that end a step on the same cell have collided, and each of them rolls for damage; a
@@ -400,7 +400,7 @@ ACTIVATE_FUEL = True
 # because it reads `Observation.low_fuel()`, and comes back with fuel to spare; `random` and `follow-fire`
 # do not, so they drain any tank and lose the whole fleet part way through the run, whatever this is set
 # to. That is a property of those baselines rather than of the size of the tank.
-UAV_FUEL = 150
+UAV_FUEL = 800
 
 # ### `UAV_FUEL_IDLE_BURN` -- fuel burned per step spent airborne, whatever the UAV did.
 # Charged for holding position and for dumping water as well as for flying, so staying up costs
@@ -436,14 +436,14 @@ UAV_FUEL_SPEED_EXPONENT = 1.5
 # any water at all: without it every UAV is permanently empty and this changes nothing.
 # **Bounds:** number `>= 0`. `0` makes water free to carry, which is how the extension behaved before this
 # existed. `1` makes a full load double the cost of every step.
-UAV_FUEL_WATER_PENALTY = 0.3
+UAV_FUEL_WATER_PENALTY = 0.0
 
 # ### `UAV_FUEL_RESERVE` -- the share of a tank at or below which a policy should turn for home.
 # Advisory only: nothing in the simulation enforces it. `Observation.low_fuel()` reports it, and the
 # `firefighter` policy breaks off whatever it is doing and flies back to the base once it is reached.
 # **Bounds:** float in `[0, 1]`. `0` never warns, so a policy reading it flies until the tank is empty;
 # `1` sends a UAV home the moment it is anything short of full.
-UAV_FUEL_RESERVE = 0.25
+UAV_FUEL_RESERVE = 0.1
 
 # ### `BASE_REFUEL_STEPS` -- steps a UAV must spend at the base to fill its tank.
 # Refuelling is not an action, and shares the refilling slot with water: a UAV standing on the base that
@@ -584,7 +584,7 @@ OUT_BUILDING_HP = 5
 
 # ### `ACTIVATE_POSITION_ERROR` -- master switch for the whole extension.
 # **Bounds:** `True` / `False`.
-ACTIVATE_POSITION_ERROR = True
+ACTIVATE_POSITION_ERROR = False
 
 # ### `UAV_POSITION_BIAS_MAX` -- largest fixed positioning error a UAV can carry, in cells per axis.
 # Each UAV draws its own bias when it is created, uniformly from the integers in
