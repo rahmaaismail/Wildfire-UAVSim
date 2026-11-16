@@ -348,8 +348,12 @@ def test_nothing_in_the_repository_imports_the_socrates_api():
     import re
     root = pathlib.Path(__file__).resolve().parents[2]
     importing = re.compile(r"^\s*(?:import|from)\s+socrates", re.IGNORECASE | re.MULTILINE)
+    # only the repository's own code: a development machine also holds installed packages and virtual
+    # environments under the same folder, some with test files in other encodings, and none of that is ours
+    foreign = {".git", ".venv", "venv", "env", "site-packages", "node_modules", "__pycache__"}
     offenders = [str(path.relative_to(root)) for path in root.rglob("*.py")
-                 if ".git" not in path.parts and importing.search(path.read_text(encoding="utf-8"))]
+                 if not foreign & set(path.relative_to(root).parts)
+                 and importing.search(path.read_text(encoding="utf-8", errors="ignore"))]
     assert offenders == []
 
 
