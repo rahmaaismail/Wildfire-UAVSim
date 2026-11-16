@@ -707,6 +707,45 @@ MANAGING_KNOWLEDGE_HISTORY = 20
 # **Bounds:** integer `>= 1`.
 BALANCE_COVERAGE_WINDOW = 56
 
+# ### `BALANCE_WARNING_CAP` and `BALANCE_FATAL_CAP` -- how far an indicator's category lowers belief in the claim it is on.
+# The `balance` managing system gives every node a belief level on the scale `REJECT`, `SKEPTICAL`,
+# `UNCERTAIN`, `LOW`, `HIGH`, `VERY_HIGH` (lowest to highest, the order of the badges in the paper's Fig. 4).
+# An indicator in the OK category lowers nothing; one in WARNING stops the belief of the nodes it is attached
+# to going above the first of these, and one in FATAL above the second. An indicator with no rating, because
+# it has no probe or its probe has nothing to report, stops it going above `UNCERTAIN`, which is fixed: no
+# news is not good news.
+# **Bounds:** a level of the scale above, with the FATAL cap no higher than the WARNING cap.
+BALANCE_WARNING_CAP = "LOW"
+BALANCE_FATAL_CAP = "SKEPTICAL"
+
+# ### `BALANCE_EVIDENCE_BELIEF` -- the belief an item of evidence is given before anything counts against it.
+# Evidence in the case is design-time evidence -- tests, a specification, results of runs -- and nothing in
+# the export says how far each is trusted, so every item starts here and is lowered only by the defeaters
+# and indicators that bear on it. The belief in a claim can never be higher than this.
+# **Bounds:** a level of the scale above.
+BALANCE_EVIDENCE_BELIEF = "HIGH"
+
+# ### `BALANCE_RESIDUAL_CAP` -- how far a defeater nobody has answered lowers belief in what it attacks.
+# A defeater whose branch ends in a residual node, or that has nothing below it, is a doubt the argument
+# states and does not resolve. It stops the belief of the claim or evidence it attacks going above this.
+# **Bounds:** a level of the scale above.
+BALANCE_RESIDUAL_CAP = "LOW"
+
+# ### `BALANCE_ACCEPTANCE` -- the least belief in the safety and performance claims that is acceptable at each base threat level.
+# One `(safety, performance)` pair for each level of base threat, 0 to 3 (the threat level the analyzer
+# reports: nothing, fire in the area, fire closing, the base alight or nearly lost). The trade-off the method
+# exists for is in how the pairs change: as the fire nears the base the least safety belief that is
+# acceptable goes down and the least performance belief goes up, so that some of the safety margin is what
+# pays for saving the base.
+# **Bounds:** four pairs of levels of the scale above, the safety minimums never rising and the performance
+# minimums never falling as the threat level rises.
+BALANCE_ACCEPTANCE = (
+    ("LOW", "UNCERTAIN"),
+    ("LOW", "LOW"),
+    ("UNCERTAIN", "LOW"),
+    ("SKEPTICAL", "LOW"),
+)
+
 # ### `MANAGING_SYSTEM_URL` -- where a remote managing system lives.
 # Ignored unless the selected managing system is a remote one. The request and response format is
 # documented in `sim/managing/remote.py`.
@@ -1022,6 +1061,23 @@ def validate(managing=None, remote=False):
                 f"MANAGING_KNOWLEDGE_HISTORY must be an integer >= 1, got {MANAGING_KNOWLEDGE_HISTORY!r}")
         require(isinstance(BALANCE_COVERAGE_WINDOW, int) and BALANCE_COVERAGE_WINDOW >= 1,
                 f"BALANCE_COVERAGE_WINDOW must be an integer >= 1, got {BALANCE_COVERAGE_WINDOW!r}")
+        levels = ("REJECT", "SKEPTICAL", "UNCERTAIN", "LOW", "HIGH", "VERY_HIGH")
+        for name in ("BALANCE_WARNING_CAP", "BALANCE_FATAL_CAP", "BALANCE_EVIDENCE_BELIEF",
+                     "BALANCE_RESIDUAL_CAP"):
+            require(globals()[name] in levels, f"{name} must be one of {', '.join(levels)}, got "
+                                               f"{globals()[name]!r}")
+        require(levels.index(BALANCE_FATAL_CAP) <= levels.index(BALANCE_WARNING_CAP),
+                f"BALANCE_FATAL_CAP ({BALANCE_FATAL_CAP}) must not be higher than BALANCE_WARNING_CAP "
+                f"({BALANCE_WARNING_CAP})")
+        require(len(BALANCE_ACCEPTANCE) == 4 and all(
+                    len(pair) == 2 and pair[0] in levels and pair[1] in levels for pair in BALANCE_ACCEPTANCE),
+                f"BALANCE_ACCEPTANCE must be four (safety, performance) pairs of levels, one for each base "
+                f"threat level 0 to 3, got {BALANCE_ACCEPTANCE!r}")
+        safety = [levels.index(pair[0]) for pair in BALANCE_ACCEPTANCE]
+        performance = [levels.index(pair[1]) for pair in BALANCE_ACCEPTANCE]
+        require(safety == sorted(safety, reverse=True) and performance == sorted(performance),
+                f"BALANCE_ACCEPTANCE must never raise the safety minimum or lower the performance minimum "
+                f"as the base threat level rises, got {BALANCE_ACCEPTANCE!r}")
         if remote:
             require(isinstance(MANAGING_SYSTEM_URL, str)
                     and MANAGING_SYSTEM_URL.startswith(("http://", "https://")),

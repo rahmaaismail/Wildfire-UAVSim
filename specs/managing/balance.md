@@ -188,8 +188,10 @@ once the operators are available, and nothing else in this specification changes
 id: MGT-BAL-8
 satisfied_by:
   - sim/managing/assurance/belief.py::BeliefAssessor.assess
+  - config.py::BALANCE_EVIDENCE_BELIEF
+  - config.py::BALANCE_RESIDUAL_CAP
 verified_by: test
-status: proposed
+status: draft
 ```
 
 ## MGT-BAL-9 — An indicator's category caps belief at its nodes
@@ -205,7 +207,7 @@ satisfied_by:
   - config.py::BALANCE_WARNING_CAP
   - config.py::BALANCE_FATAL_CAP
 verified_by: test
-status: proposed
+status: draft
 ```
 
 ## MGT-BAL-10 — No news is not good news
@@ -218,7 +220,7 @@ id: MGT-BAL-10
 satisfied_by:
   - sim/managing/assurance/belief.py::BeliefAssessor.cap_for
 verified_by: test
-status: proposed
+status: draft
 ```
 
 ## MGT-BAL-11 — What is acceptable depends on the situation
@@ -242,7 +244,7 @@ satisfied_by:
   - sim/managing/assurance/balance.py::BalanceAssessor.acceptable
   - config.py::BALANCE_ACCEPTANCE
 verified_by: test
-status: proposed
+status: draft
 ```
 
 ## MGT-BAL-12 — Options are generated when balance is lost
