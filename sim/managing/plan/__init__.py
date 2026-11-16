@@ -17,12 +17,13 @@ server does its own planning there and never builds one of these; see sim/managi
 # own python modules
 
 from ..registry import Registry
+from .balance import BalancePlanner
 from .base import Planner
 from .defensive import DefensivePlanner
 from .heuristic import HeuristicPlanner
 from .static import StaticPlanner
 
 # every planner a managing system may be composed from
-PLANNERS = Registry("planner", (HeuristicPlanner, DefensivePlanner, StaticPlanner))
+PLANNERS = Registry("planner", (HeuristicPlanner, DefensivePlanner, StaticPlanner, BalancePlanner))
 
-__all__ = ["PLANNERS", "DefensivePlanner", "HeuristicPlanner", "Planner", "StaticPlanner"]
+__all__ = ["PLANNERS", "BalancePlanner", "DefensivePlanner", "HeuristicPlanner", "Planner", "StaticPlanner"]

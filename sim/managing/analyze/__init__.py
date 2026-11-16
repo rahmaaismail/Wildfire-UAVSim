@@ -17,11 +17,12 @@ sim/managing/remote.py.
 # own python modules
 
 from ..registry import Registry
+from .balance import BalanceAnalyzer
 from .base import Analyzer
 from .cautious import CautiousAnalyzer
 from .heuristic import HeuristicAnalyzer
 
 # every analyser a managing system may be composed from
-ANALYZERS = Registry("analyzer", (HeuristicAnalyzer, CautiousAnalyzer))
+ANALYZERS = Registry("analyzer", (HeuristicAnalyzer, CautiousAnalyzer, BalanceAnalyzer))
 
-__all__ = ["ANALYZERS", "Analyzer", "CautiousAnalyzer", "HeuristicAnalyzer"]
+__all__ = ["ANALYZERS", "Analyzer", "BalanceAnalyzer", "CautiousAnalyzer", "HeuristicAnalyzer"]

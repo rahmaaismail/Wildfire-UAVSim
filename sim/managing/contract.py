@@ -305,6 +305,10 @@ class Symptoms:
     # UAVs that have already been lost, of the team that started
     lost: int = 0
     flying: int = 0
+    # set by an analyser that has decided something needs doing although nothing above is wrong: the balance
+    # analyser asking for clearance to be restored once a fire has passed is the case, a step on which every
+    # other field reads as a quiet one
+    requested: bool = False
 
     def __post_init__(self):
         object.__setattr__(self, "crowding", _by_uav(self.crowding))
@@ -314,7 +318,7 @@ class Symptoms:
     # is what keeps the cost of a managing system that runs every step down -- and, with the remote
     # planner, is the difference between one request per step and one request per event.
     def requires_adaptation(self):
-        return bool(self.base_threat or self.crowding or self.at_risk)
+        return bool(self.base_threat or self.crowding or self.at_risk or self.requested)
 
     # the UAVs that are crowded, worst first
     def crowded_uavs(self):
@@ -327,6 +331,7 @@ class Symptoms:
             "threat_distance": None if self.threat_distance == float("inf") else self.threat_distance,
             "crowding": {str(uav_id): count for uav_id, count in self.crowding.items()},
             "at_risk": list(self.at_risk), "lost": self.lost, "flying": self.flying,
+            "requested": self.requested,
         }
 
     @classmethod
@@ -338,6 +343,7 @@ class Symptoms:
             crowding=payload.get("crowding") or {},
             at_risk=payload.get("at_risk") or (),
             lost=int(payload.get("lost", 0)), flying=int(payload.get("flying", 0)),
+            requested=bool(payload.get("requested", False)),
         )
 
 

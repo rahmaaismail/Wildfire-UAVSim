@@ -746,6 +746,28 @@ BALANCE_ACCEPTANCE = (
     ("SKEPTICAL", "LOW"),
 )
 
+# ### `BALANCE_RELAX_THREAT` -- the base threat level at which clearance may be traded for fire fighting.
+# At this level or above, the `balance` managing system offers to relax the clearance of the fire fighters
+# that are near the base (separation 0: they keep off each other's cells and no more). Below it, it offers to
+# put the cushion back.
+# **Bounds:** an integer 1 to 3. 0 would have the fleet relaxed whenever nothing at all was burning.
+BALANCE_RELAX_THREAT = 2
+
+# ### `BALANCE_RELAX_GAIN` -- how many fire fighters' worth of effort one UAV gains by flying without a cushion.
+# Nothing has measured this. It is how the balance assessment is told that relaxing clearance helps
+# performance: each UAV relaxed is credited with this many extra fire fighters towards the firefighter
+# deficit (rounded down over the whole option), and each UAV restored loses as many. It is the thing to
+# replace with a number from a sweep of `separation`.
+# **Bounds:** a number from 0 up. 0 says clearance costs fire fighting nothing, so nothing is ever relaxed.
+BALANCE_RELAX_GAIN = 0.5
+
+# ### `BALANCE_CASE_FILE` and `BALANCE_BINDINGS_FILE` -- the assurance case the `balance` system reads, and how it is wired to probes.
+# Paths relative to the folder this file is in. The case is the Socrates export and the bindings say which
+# probe feeds which indicator; see `assurance/` and `specs/managing/balance.md`.
+# **Bounds:** paths to files that exist.
+BALANCE_CASE_FILE = "assurance/scout_case.json"
+BALANCE_BINDINGS_FILE = "assurance/indicator_bindings.json"
+
 # ### `MANAGING_SYSTEM_URL` -- where a remote managing system lives.
 # Ignored unless the selected managing system is a remote one. The request and response format is
 # documented in `sim/managing/remote.py`.
@@ -1078,6 +1100,13 @@ def validate(managing=None, remote=False):
         require(safety == sorted(safety, reverse=True) and performance == sorted(performance),
                 f"BALANCE_ACCEPTANCE must never raise the safety minimum or lower the performance minimum "
                 f"as the base threat level rises, got {BALANCE_ACCEPTANCE!r}")
+        require(isinstance(BALANCE_RELAX_THREAT, int) and 1 <= BALANCE_RELAX_THREAT <= 3,
+                f"BALANCE_RELAX_THREAT must be an integer from 1 to 3, got {BALANCE_RELAX_THREAT!r}")
+        require(isinstance(BALANCE_RELAX_GAIN, (int, float)) and BALANCE_RELAX_GAIN >= 0,
+                f"BALANCE_RELAX_GAIN must be a number >= 0, got {BALANCE_RELAX_GAIN!r}")
+        for name in ("BALANCE_CASE_FILE", "BALANCE_BINDINGS_FILE"):
+            require(isinstance(globals()[name], str) and globals()[name], f"{name} must be a path, got "
+                                                                          f"{globals()[name]!r}")
         if remote:
             require(isinstance(MANAGING_SYSTEM_URL, str)
                     and MANAGING_SYSTEM_URL.startswith(("http://", "https://")),

@@ -156,6 +156,16 @@ REGISTERED = (
                     "to defend it, and crowding left to SuperPolicy rather than answered with dispersal.",
     ),
     ManagingSystemSpec(
+        name="balance",
+        analyzer="balance",
+        planner="balance",
+        description="the BALANCE method: belief in the assurance case (assurance/scout_case.json) is "
+                    "assessed from run-time indicators, and clearance between fire fighters near the base "
+                    "is relaxed or restored by whichever option keeps safety and performance in balance "
+                    "for the threat the base is under. Falls back to the heuristic analysis if the case "
+                    "cannot be read.",
+    ),
+    ManagingSystemSpec(
         name="reactive",
         period=1,
         hysteresis=1,

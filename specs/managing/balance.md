@@ -259,8 +259,9 @@ id: MGT-BAL-12
 satisfied_by:
   - sim/managing/assurance/options.py::OptionGenerator.generate
   - config.py::BALANCE_RELAX_THREAT
+  - config.py::BALANCE_RELAX_GAIN
 verified_by: test
-status: proposed
+status: draft
 ```
 
 ## MGT-BAL-13 — Each option is assessed on a copy of the case
@@ -268,9 +269,11 @@ status: proposed
 > For each option the analyzer SHALL build an adapted copy of the case, assess belief and balance on the
 > copy, and keep the option only if the balance is acceptable there; SHALL leave the original case unchanged
 > by every option; and SHALL choose, from the options kept, the one with the highest performance belief, a
-> tie going to the option that changes the allocation least.
+> tie going to the option that restores clearance, and then to the one that changes the allocation least.
 
 This is the inner loop of Fig. 3: Verify, Adapt DACN, Assess Belief, Assess Balance, keep or discard.
+Restoring clearance wins a tie because it is where the fleet rests when nothing threatens the base; without
+that rule, keeping things as they are would beat it on every tie and the cushion would never come back.
 Changing the original would let a discarded option leave its marks on the case.
 
 ```yaml
@@ -278,8 +281,9 @@ id: MGT-BAL-13
 satisfied_by:
   - sim/managing/analyze/balance.py::BalanceAnalyzer.analyze
   - sim/managing/assurance/options.py::Option.adapted_case
+  - sim/managing/assurance/options.py::Option.adapted_values
 verified_by: test
-status: proposed
+status: draft
 ```
 
 ## MGT-BAL-14 — Relaxing clearance never relaxes the shared-cell guarantee
@@ -310,14 +314,15 @@ satisfied_by:
   - sim/managing/assurance/options.py::RelaxClearance
   - sim/managing/assurance/options.py::RestoreClearance
 verified_by: test
-status: proposed
+status: draft
 ```
 
 ## MGT-BAL-15 — A change of mode has to hold before it is applied
 
-> The planner SHALL pass every change of separation through the Knowledge base's hysteresis, and SHALL leave
-> a UAV's directive unchanged until the same mode has been chosen `ADAPTATION_HYSTERESIS` evaluations
-> running.
+> The planner SHALL leave a UAV's separation unchanged until the same option has been chosen for it as many
+> evaluations running as the Knowledge base's hysteresis count (`ADAPTATION_HYSTERESIS`), SHALL keep every
+> UAV's separation when it re-allocates the team, and SHALL NOT override a separation the heuristic planner
+> asked for.
 
 A fire front sitting on the threshold would otherwise flip the fleet between the two modes on alternate
 steps and spend the run turning round.
@@ -326,8 +331,9 @@ steps and spend the run turning round.
 id: MGT-BAL-15
 satisfied_by:
   - sim/managing/plan/balance.py::BalancePlanner.plan
+  - sim/managing/contract.py::Symptoms
 verified_by: test
-status: proposed
+status: draft
 ```
 
 ## MGT-BAL-16 — The system runs without the Socrates API
@@ -344,8 +350,10 @@ id: MGT-BAL-16
 satisfied_by:
   - sim/managing/assurance/case.py::CaseSource
   - sim/managing/assurance/case.py::JsonCaseSource
+  - config.py::BALANCE_CASE_FILE
+  - config.py::BALANCE_BINDINGS_FILE
 verified_by: test
-status: proposed
+status: draft
 ```
 
 ## MGT-BAL-17 — A failing case costs the run its adaptation quality, not the run
@@ -362,18 +370,19 @@ id: MGT-BAL-17
 satisfied_by:
   - sim/managing/analyze/balance.py::BalanceAnalyzer.analyze
 verified_by: test
-status: proposed
+status: draft
 ```
 
 ## MGT-BAL-18 — Every decision says why
 
 > Every `Allocation` the `balance` planner returns SHALL carry a rationale naming the belief in each
-> top-level claim, whether the balance was acceptable, the options considered, and the option chosen.
+> top-level claim and the minimum it was held to, the option chosen, and the options turned down with what
+> they fell short of.
 
 ```yaml
 id: MGT-BAL-18
 satisfied_by:
   - sim/managing/plan/balance.py::BalancePlanner.plan
 verified_by: test
-status: proposed
+status: draft
 ```
