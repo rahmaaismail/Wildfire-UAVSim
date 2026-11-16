@@ -137,13 +137,22 @@ defined looks like good news; `None` is what lets MGT-BAL-10 treat it as no news
   close-approach counts are counts of measured positions and may be wrong in either direction.
 - The firefighter deficit is computed against a placeholder rule for the number of firefighters needed at a
   given fire distance, until the team-size and fire-distance experiments say what the rule should be.
+- The shared-cell and close-pair counts leave the base out, as the simulation's own collision rule does, but
+  its MR2 count of close pairs does not, so MR2 is the larger of the two. The thresholds in the case were
+  worked out from MR2 and are on the cautious side until they are recalibrated against these probes.
+- The coverage probe has no value until `config.BALANCE_COVERAGE_WINDOW` steps have been watched, and it
+  watches only the steps the managing loop runs on: with `ADAPTATION_PERIOD` above 1 it sees the UAVs less
+  often than they move, and under-counts what was in view in between.
 
 ```yaml
 id: MGT-BAL-6
 satisfied_by:
   - sim/managing/assurance/probes.py::PROBES
+  - sim/managing/assurance/probes.py::measure
+  - sim/managing/knowledge/base.py::Knowledge
+  - config.py::BALANCE_COVERAGE_WINDOW
 verified_by: test
-status: proposed
+status: draft
 ```
 
 ## MGT-BAL-7 — The top-level claims are the ones named

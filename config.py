@@ -698,6 +698,15 @@ MANAGING_CROWDED_SPEED_CAP = 1
 # **Bounds:** integer `>= 1`.
 MANAGING_KNOWLEDGE_HISTORY = 20
 
+# ### `BALANCE_COVERAGE_WINDOW` -- the number of steps over which the `balance` managing system judges scout coverage.
+# The "Scout coverage" indicator is the share of the grid that has been inside some UAV's observation window
+# within this many steps, and it has no value until a whole window has been observed. It is meant to be one
+# lap of the scout's sweep loop, which at the shipped settings is about 56 steps (`specs/policies/scout.md`);
+# a window shorter than a lap reports gaps the sweep has not yet had time to close, and a longer one hides a
+# gap that has opened.
+# **Bounds:** integer `>= 1`.
+BALANCE_COVERAGE_WINDOW = 56
+
 # ### `MANAGING_SYSTEM_URL` -- where a remote managing system lives.
 # Ignored unless the selected managing system is a remote one. The request and response format is
 # documented in `sim/managing/remote.py`.
@@ -1011,6 +1020,8 @@ def validate(managing=None, remote=False):
                 f"MANAGING_CROWDED_SPEED_CAP must be an integer >= 0, got {MANAGING_CROWDED_SPEED_CAP!r}")
         require(isinstance(MANAGING_KNOWLEDGE_HISTORY, int) and MANAGING_KNOWLEDGE_HISTORY >= 1,
                 f"MANAGING_KNOWLEDGE_HISTORY must be an integer >= 1, got {MANAGING_KNOWLEDGE_HISTORY!r}")
+        require(isinstance(BALANCE_COVERAGE_WINDOW, int) and BALANCE_COVERAGE_WINDOW >= 1,
+                f"BALANCE_COVERAGE_WINDOW must be an integer >= 1, got {BALANCE_COVERAGE_WINDOW!r}")
         if remote:
             require(isinstance(MANAGING_SYSTEM_URL, str)
                     and MANAGING_SYSTEM_URL.startswith(("http://", "https://")),

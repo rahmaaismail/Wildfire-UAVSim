@@ -55,6 +55,11 @@ class Knowledge:
         # how many times the loop has changed anything, which is what the status panel reports
         self.adaptations = 0
         self.rationale = ""
+        # somewhere for a component to keep what it has to remember between evaluations and that is not a
+        # snapshot: the balance probes' record of which cells have been in view, for one. It is keyed by the
+        # component that owns the entry, so two of them do not trample each other, and it is deliberately
+        # untyped -- a component reads back only what it wrote.
+        self.memory = {}
 
     # --- monitoring -------------------------------------------------------
 
