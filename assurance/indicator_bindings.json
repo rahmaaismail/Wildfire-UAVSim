@@ -1,0 +1,16 @@
+{
+  "top_level": {
+    "safety": 4,
+    "performance": 5
+  },
+  "probes": {
+    "Num UAVs Sharing Cell": "shared_cells",
+    "UAV pairs closer than SECURITY_DISTANCE": "close_pairs",
+    "UAVs lost": "uavs_lost",
+    "Lowest fuel fraction": "lowest_fuel",
+    "Firefighter deficit": "firefighter_deficit",
+    "Base burning steps (of 4)": "base_burning_steps",
+    "Scout coverage": "scout_coverage",
+    "UAVs in service": "uavs_in_service"
+  }
+}

@@ -106,15 +106,20 @@ the parser rejects a folded scalar (`key: >`) rather than letting prose creep ba
 
 | Field | Required | Meaning |
 |-------|----------|---------|
-| `id` | yes | `POL-<TAG>-<n>`. Unique across all specs, and `<TAG>` must match the file it appears in. Must match the heading. |
+| `id` | yes | `POL-<TAG>-<n>` for a UAV policy, `MGT-<TAG>-<n>` for the managing system (`managing/`). Unique across all specs, and `<TAG>` must match the file it appears in. Must match the heading. |
 | `satisfied_by` | yes | List of `path::Symbol` or `path::Symbol.method`, each of which must resolve. |
 | `verified_by` | yes | `test`, `inspection`, `analysis`, or `none`. |
-| `status` | yes | `draft`, `agreed`, or `retired`. |
+| `status` | yes | `proposed`, `draft`, `agreed`, or `retired`. |
 
 `verified_by: test` is the normal case and obliges at least one tagged test to exist. The other three
 values are escape hatches that stay visible: `inspection` and `analysis` record that the evidence is
 human judgement rather than a test, and `none` records a gap on purpose. All three are counted in the gap
 summary of `TRACEABILITY.md` rather than being silently accepted.
+
+`status: proposed` is for a requirement that is written and not built yet, which is what "the specification
+leads the code" needs in order to be possible at all. Its `satisfied_by` and its tests are not checked, and
+`TRACEABILITY.md` lists it as not built. Change it to `draft` in the commit that adds the code, which turns
+the checks on.
 
 `status: retired` keeps a requirement in the file, and its ID out of circulation, once it no longer
 applies. Retired requirements are not checked for verification. Deleting a requirement outright is wrong:

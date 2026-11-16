@@ -44,6 +44,7 @@ wrong neighbour without any error.
 id: MGT-BAL-1
 satisfied_by:
   - sim/managing/assurance/case.py::JsonCaseSource.load
+  - sim/managing/assurance/case.py::JsonCaseSource.parse
 verified_by: test
 status: draft
 ```
@@ -61,7 +62,8 @@ response that cannot do harm; MGT-BAL-17 says what the loop does in the meantime
 id: MGT-BAL-2
 satisfied_by:
   - sim/managing/assurance/case.py::JsonCaseSource.load
-  - sim/managing/assurance/case.py::CaseError
+  - sim/managing/assurance/case.py::JsonCaseSource.parse
+  - sim/managing/assurance/errors.py::CaseError
 verified_by: test
 status: draft
 ```
@@ -104,8 +106,9 @@ status: draft
 ## MGT-BAL-5 — An indicator is bound to its probe by name
 
 > The managing system SHALL bind each indicator to the probe named for it in
-> `assurance/indicator_bindings.json`; SHALL raise `CaseError` naming a binding whose probe does not exist;
-> and SHALL leave an indicator that has no binding unrated, reporting it once.
+> `assurance/indicator_bindings.json`; SHALL raise `CaseError` naming a binding whose probe does not exist or
+> whose indicator the case does not have; and SHALL leave an indicator that has no binding unrated, reporting
+> it once.
 
 A name that matches nothing is a mistake to be found when the system is built, not on step 40 of a run.
 
@@ -140,7 +143,7 @@ id: MGT-BAL-6
 satisfied_by:
   - sim/managing/assurance/probes.py::PROBES
 verified_by: test
-status: draft
+status: proposed
 ```
 
 ## MGT-BAL-7 — The top-level claims are the ones named
@@ -177,7 +180,7 @@ id: MGT-BAL-8
 satisfied_by:
   - sim/managing/assurance/belief.py::BeliefAssessor.assess
 verified_by: test
-status: draft
+status: proposed
 ```
 
 ## MGT-BAL-9 — An indicator's category caps belief at its nodes
@@ -193,7 +196,7 @@ satisfied_by:
   - config.py::BALANCE_WARNING_CAP
   - config.py::BALANCE_FATAL_CAP
 verified_by: test
-status: draft
+status: proposed
 ```
 
 ## MGT-BAL-10 — No news is not good news
@@ -206,7 +209,7 @@ id: MGT-BAL-10
 satisfied_by:
   - sim/managing/assurance/belief.py::BeliefAssessor.cap_for
 verified_by: test
-status: draft
+status: proposed
 ```
 
 ## MGT-BAL-11 — What is acceptable depends on the situation
@@ -230,7 +233,7 @@ satisfied_by:
   - sim/managing/assurance/balance.py::BalanceAssessor.acceptable
   - config.py::BALANCE_ACCEPTANCE
 verified_by: test
-status: draft
+status: proposed
 ```
 
 ## MGT-BAL-12 — Options are generated when balance is lost
@@ -246,7 +249,7 @@ satisfied_by:
   - sim/managing/assurance/options.py::OptionGenerator.generate
   - config.py::BALANCE_RELAX_THREAT
 verified_by: test
-status: draft
+status: proposed
 ```
 
 ## MGT-BAL-13 — Each option is assessed on a copy of the case
@@ -265,7 +268,7 @@ satisfied_by:
   - sim/managing/analyze/balance.py::BalanceAnalyzer.analyze
   - sim/managing/assurance/options.py::Option.adapted_case
 verified_by: test
-status: draft
+status: proposed
 ```
 
 ## MGT-BAL-14 — Relaxing clearance never relaxes the shared-cell guarantee
@@ -296,7 +299,7 @@ satisfied_by:
   - sim/managing/assurance/options.py::RelaxClearance
   - sim/managing/assurance/options.py::RestoreClearance
 verified_by: test
-status: draft
+status: proposed
 ```
 
 ## MGT-BAL-15 — A change of mode has to hold before it is applied
@@ -313,7 +316,7 @@ id: MGT-BAL-15
 satisfied_by:
   - sim/managing/plan/balance.py::BalancePlanner.plan
 verified_by: test
-status: draft
+status: proposed
 ```
 
 ## MGT-BAL-16 — The system runs without the Socrates API
@@ -331,7 +334,7 @@ satisfied_by:
   - sim/managing/assurance/case.py::CaseSource
   - sim/managing/assurance/case.py::JsonCaseSource
 verified_by: test
-status: draft
+status: proposed
 ```
 
 ## MGT-BAL-17 — A failing case costs the run its adaptation quality, not the run
@@ -348,7 +351,7 @@ id: MGT-BAL-17
 satisfied_by:
   - sim/managing/analyze/balance.py::BalanceAnalyzer.analyze
 verified_by: test
-status: draft
+status: proposed
 ```
 
 ## MGT-BAL-18 — Every decision says why
@@ -361,5 +364,5 @@ id: MGT-BAL-18
 satisfied_by:
   - sim/managing/plan/balance.py::BalancePlanner.plan
 verified_by: test
-status: draft
+status: proposed
 ```

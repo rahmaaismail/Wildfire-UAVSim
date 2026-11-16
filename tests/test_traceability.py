@@ -267,6 +267,47 @@ def test_a_heading_and_its_block_have_to_agree():
         validate_record(dict(GOOD), "POL-GEN-2", "test")
 
 
+# --- the managing system's specifications ------------------------------------
+
+
+def test_a_managing_system_requirement_validates_with_its_own_prefix():
+    # POL- is for the UAV policies; the managing system specified under specs/managing/ is MGT-
+    validate_record(dict(GOOD, id="MGT-BAL-1"), "MGT-BAL-1", "test")
+
+
+def test_a_prefix_nobody_defined_is_still_rejected():
+    with pytest.raises(SpecError):
+        validate_record(dict(GOOD, id="XYZ-GEN-1"), "XYZ-GEN-1", "test")
+
+
+def test_a_proposed_requirement_is_a_recognised_status_and_needs_no_test_yet():
+    # the specification leads the code, so a requirement has to be able to exist before what satisfies it
+    validate_record(dict(GOOD, status="proposed"), GOOD["id"], "test")
+    proposed = trace.Requirement(id="MGT-BAL-1", title="t", statement="It SHALL.", satisfied_by=["x.py::Y"],
+                                 verified_by="test", status="proposed", spec="s.md", line=1)
+    assert not proposed.needs_test
+    assert trace.Requirement(**dict(proposed.__dict__, status="draft")).needs_test
+
+
+def test_a_proposed_requirement_is_not_asked_to_resolve_to_code_that_does_not_exist_yet():
+    proposed = trace.Requirement(id="MGT-BAL-1", title="t", statement="It SHALL.",
+                                 satisfied_by=["sim/managing/not_built_yet.py::Nothing"],
+                                 verified_by="test", status="proposed", spec="s.md", line=1)
+    assert trace.resolve_implementations([proposed]) == []
+    built = trace.Requirement(**dict(proposed.__dict__, status="draft"))
+    assert trace.resolve_implementations([built]), "a draft requirement must still resolve"
+
+
+def test_the_managing_specifications_are_read_and_are_not_held_to_the_policy_registry():
+    # missing-spec and orphan-spec compare specs/policies/ against the registered policies; a file under
+    # specs/managing/ is about no policy, so it must not be reported as an orphan
+    names = {path.name for path in trace.managing_spec_files()}
+    assert names <= {path.name for path in trace.spec_files()}
+    found, _, _, _ = trace.check()
+    assert not [finding for finding in found
+                if finding.kind == "orphan-spec" and "managing" in finding.where]
+
+
 # --- the report -------------------------------------------------------------
 
 
