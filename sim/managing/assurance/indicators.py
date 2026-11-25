@@ -41,6 +41,25 @@ COMPARATORS = {
 COMBINATORS = ("AND", "OR")
 
 
+class _NotApplicable:
+    """What a probe returns when the gauge does not apply to the fleet it is looking at.
+
+    It is not a zero and not a None. A zero is a reading and looks like good news; a None is no reading and
+    counts against belief (MGT-BAL-10). This is neither: the thing the indicator measures is not part of
+    what is being flown, as the coverage of the scout sweep is not when no UAV is scouting, so the gauge
+    says nothing about the claim either way. It is a single object so that it can be compared with `is`.
+    """
+
+    def __repr__(self):
+        return "NOT_APPLICABLE"
+
+    def __bool__(self):
+        return False
+
+
+NOT_APPLICABLE = _NotApplicable()
+
+
 # the timestamp format of an export, which is ISO 8601 with milliseconds and an offset written without a
 # colon ("2026-11-02T22:54:20.000+0000"). datetime.fromisoformat takes that from Python 3.11 onwards and
 # not before, and a case should read the same on whichever Python the machine has.
@@ -166,7 +185,7 @@ class Indicator:
     # and not the mildest category: an unrated indicator is a gap in what the case knows, and the belief
     # assessment counts it as one rather than as good news.
     def rate(self, value):
-        if value is None:
+        if value is None or value is NOT_APPLICABLE:
             return None
         matching = [rule.category for rule in self.rules if rule.holds(value)]
         if not matching:

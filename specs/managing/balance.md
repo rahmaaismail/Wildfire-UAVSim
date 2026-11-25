@@ -125,11 +125,17 @@ status: draft
 > Each probe SHALL compute its value from a `FleetSnapshot` and the Knowledge base alone, SHALL exclude the
 > cells of the home base from every count that concerns shared cells or close approaches, and SHALL return
 > `None` rather than a number when its quantity is not defined at the step: the fuel probe when fuel is not
-> tracked, and the coverage probe before the first full lap.
+> tracked, and the coverage probe before the first full lap; and SHALL return `NOT_APPLICABLE`, which is
+> neither a number nor `None`, when the quantity is not part of what the team is doing: the coverage probe
+> while no UAV is flying a scouting policy.
 
 The base is shared airspace, so any number of UAVs on it is not a hazard, and counting them would put the
 whole team in the danger category on step 0 of every run. A zero reported for a quantity that is not
-defined looks like good news; `None` is what lets MGT-BAL-10 treat it as no news.
+defined looks like good news; `None` is what lets MGT-BAL-10 treat it as no news. `NOT_APPLICABLE` is
+for the opposite case, where there is no news because there is nothing to report: a team that is not
+scouting has no scout coverage to fail. Reading that as a failure held the performance claim at SKEPTICAL
+for the whole run, so that no option could ever be acceptable and the `balance` system chose "keep" at
+almost every step, which is the heuristic system under another name.
 
 **Assumptions:**
 
@@ -151,6 +157,7 @@ satisfied_by:
   - sim/managing/assurance/probes.py::measure
   - sim/managing/knowledge/base.py::Knowledge
   - config.py::BALANCE_COVERAGE_WINDOW
+  - sim/managing/assurance/indicators.py::NOT_APPLICABLE
 verified_by: test
 status: draft
 ```
@@ -213,12 +220,14 @@ status: draft
 ## MGT-BAL-10 — No news is not good news
 
 > The belief assessor SHALL cap at UNCERTAIN the belief of every node whose indicator is unrated, whether
-> because no probe is bound, the probe returned `None`, or no rule covers the value.
+> because no probe is bound, the probe returned `None`, or no rule covers the value; and SHALL NOT cap, or
+> give a reason for, a node whose indicator is `NOT_APPLICABLE`.
 
 ```yaml
 id: MGT-BAL-10
 satisfied_by:
   - sim/managing/assurance/belief.py::BeliefAssessor.cap_for
+  - sim/managing/assurance/indicators.py::NOT_APPLICABLE
 verified_by: test
 status: draft
 ```
@@ -331,6 +340,7 @@ steps and spend the run turning round.
 id: MGT-BAL-15
 satisfied_by:
   - sim/managing/plan/balance.py::BalancePlanner.plan
+  - sim/managing/assurance/belief.py::explain
   - sim/managing/contract.py::Symptoms
 verified_by: test
 status: draft
@@ -376,13 +386,43 @@ status: draft
 ## MGT-BAL-18 — Every decision says why
 
 > Every `Allocation` the `balance` planner returns SHALL carry a rationale naming the belief in each
-> top-level claim and the minimum it was held to, the option chosen, and the options turned down with what
-> they fell short of.
+> top-level claim and the minimum it was held to, the option chosen, the options turned down with what
+> they fell short of, and what is holding each top-level claim down: the reasons on the nodes under it that
+> are no more believed than it is.
 
 ```yaml
 id: MGT-BAL-18
 satisfied_by:
   - sim/managing/plan/balance.py::BalancePlanner.plan
+verified_by: test
+status: draft
+```
+
+## MGT-BAL-19 — The case can be fetched from an address
+
+> When `config.BALANCE_CASE_URL` is not empty, the case source SHALL fetch the case from that http or https
+> address, once when the analyzer is built, and SHALL NOT read `config.BALANCE_CASE_FILE`; SHALL refuse an
+> address of any other kind, an address that does not answer within `config.BALANCE_CASE_TIMEOUT` seconds,
+> and a response that is not a case it can trust, each as a `CaseError`; and SHALL send a token the
+> environment names as a bearer token, never reading one from `config.py`.
+
+The case is edited in Socrates and exported, so a managing system that can only read a file somebody copied
+into the repository is arguing from whatever was copied last. A failed fetch is a failing case, which
+MGT-BAL-17 already handles: the run goes on under the heuristic analysis and the failure is reported once.
+
+**Assumptions:**
+
+- The address serves the Socrates JSON export itself. Whether Socrates can serve one to a program without
+  its Python API, and what it asks for in return, is not known; the token is passed as a bearer token
+  because that is the common case and costs nothing when there is none.
+
+```yaml
+id: MGT-BAL-19
+satisfied_by:
+  - sim/managing/assurance/case.py::UrlCaseSource
+  - sim/managing/analyze/balance.py::BalanceAnalyzer.default_source
+  - config.py::BALANCE_CASE_URL
+  - config.py::BALANCE_CASE_TIMEOUT
 verified_by: test
 status: draft
 ```

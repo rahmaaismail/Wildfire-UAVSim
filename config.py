@@ -768,6 +768,16 @@ BALANCE_RELAX_GAIN = 0.5
 BALANCE_CASE_FILE = "assurance/scout_case.json"
 BALANCE_BINDINGS_FILE = "assurance/indicator_bindings.json"
 
+# ### `BALANCE_CASE_URL` and `BALANCE_CASE_TIMEOUT` -- read the latest case from a web address instead of the file.
+# When `BALANCE_CASE_URL` is not empty, the `balance` system fetches the case from it, once at the start of
+# each run, and `BALANCE_CASE_FILE` is not read at all. The address has to serve the Socrates JSON export.
+# If it cannot be reached, or what it serves is not a case this reader trusts, the system falls back to the
+# heuristic analysis and says so in the log, which is what an unreadable file does too. A token the address
+# needs is read from the environment variable `BALANCE_CASE_TOKEN`, never from this file, which is public.
+# **Bounds:** an empty string, or an `http://` or `https://` address; the timeout is a number of seconds > 0.
+BALANCE_CASE_URL = ""
+BALANCE_CASE_TIMEOUT = 10.0
+
 # ### `MANAGING_SYSTEM_URL` -- where a remote managing system lives.
 # Ignored unless the selected managing system is a remote one. The request and response format is
 # documented in `sim/managing/remote.py`.
@@ -1104,6 +1114,11 @@ def validate(managing=None, remote=False):
                 f"BALANCE_RELAX_THREAT must be an integer from 1 to 3, got {BALANCE_RELAX_THREAT!r}")
         require(isinstance(BALANCE_RELAX_GAIN, (int, float)) and BALANCE_RELAX_GAIN >= 0,
                 f"BALANCE_RELAX_GAIN must be a number >= 0, got {BALANCE_RELAX_GAIN!r}")
+        require(isinstance(BALANCE_CASE_URL, str)
+                and (BALANCE_CASE_URL == "" or BALANCE_CASE_URL.startswith(("http://", "https://"))),
+                f"BALANCE_CASE_URL must be empty or an http(s) address, got {BALANCE_CASE_URL!r}")
+        require(isinstance(BALANCE_CASE_TIMEOUT, (int, float)) and BALANCE_CASE_TIMEOUT > 0,
+                f"BALANCE_CASE_TIMEOUT must be a number > 0, got {BALANCE_CASE_TIMEOUT!r}")
         for name in ("BALANCE_CASE_FILE", "BALANCE_BINDINGS_FILE"):
             require(isinstance(globals()[name], str) and globals()[name], f"{name} must be a path, got "
                                                                           f"{globals()[name]!r}")

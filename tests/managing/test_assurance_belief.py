@@ -13,9 +13,9 @@ import pytest
 # own python modules
 
 import config
-from sim.managing.assurance import Bindings, Category, CaseError, JsonCaseSource
+from sim.managing.assurance import NOT_APPLICABLE, Bindings, Category, CaseError, JsonCaseSource
 from sim.managing.assurance.balance import BalanceAssessor
-from sim.managing.assurance.belief import Belief, BeliefAssessor, rate_indicators
+from sim.managing.assurance.belief import Belief, BeliefAssessor, explain, rate_indicators
 from sim.managing.assurance.probes import PROBES
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -168,6 +168,52 @@ def test_an_indicator_with_no_probe_or_no_value_is_unrated():
     case = case_of(CHAIN, [("gauge", [2]), ("other", [2])])
     ratings = rate_indicators(case, {"gauge": "p"}, {"p": None})
     assert ratings == {"gauge": None, "other": None}
+
+
+@pytest.mark.verifies("MGT-BAL-10")
+def test_a_gauge_that_does_not_apply_caps_nothing_and_is_not_the_same_as_no_news(monkeypatch):
+    monkeypatch.setattr(config, "BALANCE_EVIDENCE_BELIEF", "VERY_HIGH")
+    case = case_of(CHAIN, [("gauge", [2])])
+    assessor = BeliefAssessor(case)
+    assert assessor.assess({"gauge": NOT_APPLICABLE})[1] == Belief.VERY_HIGH
+    assert assessor.assess({"gauge": NOT_APPLICABLE}).why(2) == ()
+    assert assessor.assess({"gauge": None})[1] == Belief.UNCERTAIN
+
+
+@pytest.mark.verifies("MGT-BAL-10")
+def test_a_probe_that_says_not_applicable_rates_as_not_applicable_and_not_as_unrated():
+    case = case_of(CHAIN, [("gauge", [2])])
+    assert rate_indicators(case, {"gauge": "p"}, {"p": NOT_APPLICABLE}) == {"gauge": NOT_APPLICABLE}
+
+
+@pytest.mark.verifies("MGT-BAL-18")
+def test_the_reasons_given_for_a_claim_are_those_of_the_weakest_links_under_it():
+    # 1 rests on 2 (held down by a FATAL gauge) and on 3 (fine); only 2's reason is why 1 is where it is
+    case = case_of([(1, "CLAIM", [2, 3]), (2, "EVIDENCE", []), (3, "EVIDENCE", [])],
+                   [("bad", [2]), ("fine", [3])])
+    result = BeliefAssessor(case).assess({"bad": FATAL, "fine": OK})
+    assert explain(case, result, 1) == ("bad is FATAL: at most SKEPTICAL",)
+    # a node nothing holds down has nothing to explain
+    assert explain(case, result, 3) == ()
+
+
+@pytest.mark.verifies("MGT-BAL-18")
+def test_a_milder_reason_on_a_stronger_branch_is_not_given_as_why_a_claim_is_low():
+    # 2 is held to SKEPTICAL and 3 only to LOW; 1 is SKEPTICAL because of 2, and 3's reason is not why
+    case = case_of([(1, "CLAIM", [2, 3]), (2, "EVIDENCE", []), (3, "EVIDENCE", [])],
+                   [("worse", [2]), ("milder", [3])])
+    result = BeliefAssessor(case).assess({"worse": FATAL, "milder": WARNING})
+    assert result[1] == Belief.SKEPTICAL and result[3] == Belief.LOW
+    assert explain(case, result, 1) == ("worse is FATAL: at most SKEPTICAL",)
+
+
+@pytest.mark.verifies("MGT-BAL-18")
+def test_the_explanation_is_cut_to_the_limit_and_names_each_reason_once():
+    case = case_of([(1, "CLAIM", [2, 3, 4]), (2, "EVIDENCE", []), (3, "EVIDENCE", []), (4, "EVIDENCE", [])],
+                   [("a", [2]), ("b", [3]), ("c", [4])])
+    result = BeliefAssessor(case).assess({"a": FATAL, "b": FATAL, "c": FATAL})
+    assert len(explain(case, result, 1, limit=2)) == 2
+    assert len(set(explain(case, result, 1))) == len(explain(case, result, 1)) == 3
 
 
 # --- the real case -----------------------------------------------------------

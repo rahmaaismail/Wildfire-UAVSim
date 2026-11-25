@@ -22,6 +22,7 @@ See specs/managing/balance.md, MGT-BAL-12, MGT-BAL-13, MGT-BAL-17 and MGT-BAL-18
 # python libraries
 
 import logging
+import os
 import pathlib
 from dataclasses import replace
 
@@ -29,9 +30,9 @@ from dataclasses import replace
 
 # see the note in sim/policy/random_policy.py about importing config as a module
 import config
-from ..assurance import Bindings, CaseError, JsonCaseSource
+from ..assurance import Bindings, CaseError, JsonCaseSource, UrlCaseSource
 from ..assurance.balance import BalanceAssessor
-from ..assurance.belief import BeliefAssessor, rate_indicators
+from ..assurance.belief import BeliefAssessor, explain, rate_indicators
 from ..assurance.options import OptionGenerator, separation_of
 from ..assurance.probes import PROBES, measure
 from .base import Analyzer
@@ -54,7 +55,7 @@ class BalanceAnalyzer(Analyzer):
 
         try:
             root = pathlib.Path(config.__file__).resolve().parent
-            source = source if source is not None else JsonCaseSource(root / config.BALANCE_CASE_FILE)
+            source = source if source is not None else self.default_source(root)
             bindings = bindings if bindings is not None else Bindings.load(root / config.BALANCE_BINDINGS_FILE)
             self.case = source.load()
             self.bound = bindings.resolve(self.case, PROBES, log=LOG).bound
@@ -62,6 +63,15 @@ class BalanceAnalyzer(Analyzer):
             self.judge = BalanceAssessor.for_case(bindings.top_level(self.case))
         except CaseError as error:
             self.fail(error)
+
+    # where the case comes from when nobody said: the address in config if there is one, else the file. The
+    # token for an address that needs one comes from the environment, because config.py is a public file.
+    @staticmethod
+    def default_source(root):
+        if config.BALANCE_CASE_URL:
+            return UrlCaseSource(config.BALANCE_CASE_URL, timeout=config.BALANCE_CASE_TIMEOUT,
+                                 token=os.environ.get("BALANCE_CASE_TOKEN"))
+        return JsonCaseSource(root / config.BALANCE_CASE_FILE)
 
     def fail(self, error):
         if self.failure is None:
@@ -97,19 +107,19 @@ class BalanceAnalyzer(Analyzer):
         case = option.adapted_case(self.case, self.bound)
         ratings = rate_indicators(case, self.bound, option.adapted_values(values))
         assessment = BeliefAssessor(case).assess(ratings)
-        return self.judge.acceptable(assessment, threat), assessment
+        return self.judge.acceptable(assessment, threat), assessment, case
 
     def assess(self, snapshot, symptoms, knowledge, memory):
         threat = symptoms.base_threat
         values = measure(snapshot, knowledge, sorted(set(self.bound.values())))
 
         keep = self.generator.keep(snapshot, threat)
-        keep_verdict, _ = self.evaluate(keep, values, threat)
+        keep_verdict, keep_assessment, keep_case = self.evaluate(keep, values, threat)
         options = self.generator.generate(snapshot, threat, keep_verdict.acceptable)
 
         kept, discarded = [], []
         for option in options:
-            verdict, _ = self.evaluate(option, values, threat)
+            verdict, _, _ = self.evaluate(option, values, threat)
             if verdict.acceptable:
                 kept.append((option, verdict))
             else:
@@ -124,9 +134,19 @@ class BalanceAnalyzer(Analyzer):
             chosen, verdict = keep, keep_verdict
             reason = "no option keeps the balance acceptable, so nothing is changed"
 
+        # what is holding the two top-level claims down in the situation as it stands, which is the thing a
+        # reader of the log most needs and the thing the beliefs alone do not say
+        held = {role: explain(keep_case, keep_assessment, lid)
+                for role, lid in (("safety", self.judge.safety_lid), ("performance", self.judge.performance_lid))}
+        if LOG.isEnabledFor(logging.DEBUG):
+            ratings = rate_indicators(keep_case, self.bound, values)
+            LOG.debug("step %d indicators: %s", snapshot.step, "; ".join(
+                f"{name}={values.get(probe)} ({ratings[name]})" for name, probe in sorted(self.bound.items())))
         memory["option"] = chosen
         memory["verdict"] = verdict
-        memory["rationale"] = self.rationale(threat, chosen, verdict, discarded, reason)
+        memory["readings"] = values
+        memory["held"] = held
+        memory["rationale"] = self.rationale(threat, chosen, verdict, discarded, reason, held)
 
         pending = [report.uav_id for report in snapshot.alive()
                    if report.uav_id in chosen.uav_ids and chosen.separation() is not None
@@ -147,10 +167,14 @@ class BalanceAnalyzer(Analyzer):
         return replace(symptoms, crowding=crowding, requested=bool(pending))
 
     # one line a reader can follow: what was chosen, the beliefs it rests on, and what was turned down and why
-    def rationale(self, threat, chosen, verdict, discarded, reason):
+    def rationale(self, threat, chosen, verdict, discarded, reason, held=None):
         text = (f"balance at base threat {threat}: {chosen} ({reason}); safety {verdict.safety.name} "
                 f"(needs {verdict.safety_minimum.name}), performance {verdict.performance.name} "
                 f"(needs {verdict.performance_minimum.name})")
         turned_down = [f"{option} ({'; '.join(v.shortfalls())})" for option, v in discarded
                        if option is not chosen]
-        return text + (f"; discarded: {', '.join(turned_down)}" if turned_down else "")
+        text += f"; discarded: {', '.join(turned_down)}" if turned_down else ""
+        for role, reasons in (held or {}).items():
+            if reasons:
+                text += f"; {role} held by {' & '.join(reasons)}"
+        return text

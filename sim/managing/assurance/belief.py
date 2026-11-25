@@ -31,6 +31,7 @@ from enum import IntEnum
 # see the note in sim/policy/random_policy.py about importing config as a module
 import config
 from .errors import CaseError
+from .indicators import NOT_APPLICABLE
 
 
 class Belief(IntEnum):
@@ -99,6 +100,8 @@ class BeliefAssessor:
             if indicator.archived:
                 continue
             category = ratings.get(indicator.name)
+            if category is NOT_APPLICABLE:
+                continue
             if category is None:
                 limit, why = Belief.UNCERTAIN, f"{indicator.name} is unrated"
             else:
@@ -195,6 +198,35 @@ class BeliefAssessor:
         return Assessment(beliefs=beliefs, limits=limits)
 
 
+def explain(case, assessment, lid, limit=3):
+    """Why node `lid` is as believed as it is: the reasons held by the nodes under it that are no more
+    believed than it is, which are the weakest links its belief was taken from.
+
+    A claim's belief is the lowest of what it rests on, so the reasons that matter are those on the nodes
+    that share its level. Reasons come back de-duplicated, in the order they are met, at most `limit` of
+    them, so a line of a log can carry them.
+    """
+    level = assessment[lid]
+    reasons, seen = [], set()
+
+    def visit(current):
+        if current in seen:
+            return
+        seen.add(current)
+        node = case.node(current)
+        if node.archived or assessment[current] > level:
+            return
+        for reason in assessment.why(current):
+            if reason not in reasons:
+                reasons.append(reason)
+        for child in node.children:
+            if case.node(child).node_type not in ("CONTEXT", "RESIDUAL"):
+                visit(child)
+
+    visit(lid)
+    return tuple(reasons[:limit])
+
+
 def rate_indicators(case, bound, values):
     """The category of each indicator's current probe value, as {indicator name: Category or None}.
 
@@ -204,5 +236,6 @@ def rate_indicators(case, bound, values):
     ratings = {}
     for indicator in case.indicators:
         probe = bound.get(indicator.name)
-        ratings[indicator.name] = indicator.rate(values.get(probe)) if probe is not None else None
+        value = values.get(probe) if probe is not None else None
+        ratings[indicator.name] = NOT_APPLICABLE if value is NOT_APPLICABLE else indicator.rate(value)
     return ratings

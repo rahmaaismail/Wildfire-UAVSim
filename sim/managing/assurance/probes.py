@@ -6,10 +6,11 @@ the managing system independent of it -- so what a probe can measure is exactly 
 sensor report, and a probe that needs the past reads it from the Knowledge base rather than keeping any of
 its own.
 
-A probe returns None, not a number, when its quantity is not defined at this step. The difference matters:
+A probe returns NOT_APPLICABLE when its quantity does not apply to the team being flown, and None, not a
+number, when it applies but is not defined at this step. The difference matters:
 a zero looks like good news and a None is no news, and the belief assessment treats the two differently
 (MGT-BAL-10). That is why the fuel probe says nothing when fuel is not being tracked, and the coverage
-probe says nothing until a whole lap has been watched.
+probe says nothing until a whole lap has been watched. The difference between the two is in MGT-BAL-6.
 
 The name a probe is registered under is the name the bindings file uses for it (assurance/
 indicator_bindings.json), and tests/managing/test_assurance_probes.py checks that every probe the file
@@ -45,11 +46,15 @@ from collections import Counter
 
 # see the note in sim/policy/random_policy.py about importing config as a module
 import config
+from .indicators import NOT_APPLICABLE
 
 # the policies that put water on a fire, by the names they travel under in a directive. The managing system
 # never imports the policies (see tests/managing/test_independence.py); a name is all it has of them.
 # follow-fire is left out on purpose: it flies at fire and never drops anything.
 FIREFIGHTING_POLICIES = ("firefighter", "scout-firefighter", "defend-base")
+
+# the policies that sweep the map looking for fire, which is what the coverage indicator is about
+SCOUTING_POLICIES = ("scout", "scout-firefighter")
 
 # every probe, by the name the bindings file refers to it by. Filled in by the registration below.
 PROBES = {}
@@ -217,6 +222,13 @@ def scout_coverage(snapshot, knowledge):
             for row in range(max(0, y - radius), min(height, y + radius + 1)):
                 if (column, row) not in hidden:
                     last_seen[(column, row)] = snapshot.step
+
+    # the indicator is about the scouts' sweep. A team that has none is not sweeping, and reporting its
+    # coverage as a failure would hold the performance claim down for the whole run by something the team
+    # was never trying to do. The memory above is kept either way, so coverage is right the moment a scout
+    # flies again.
+    if not any(report.policy in SCOUTING_POLICIES for report in snapshot.alive()):
+        return NOT_APPLICABLE
 
     window = config.BALANCE_COVERAGE_WINDOW
     if width * height == 0 or snapshot.step - memory["first_step"] < window:

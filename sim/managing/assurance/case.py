@@ -23,6 +23,9 @@ See specs/managing/balance.md, MGT-BAL-1, MGT-BAL-2 and MGT-BAL-16.
 # python libraries
 
 import json
+import urllib.error
+import urllib.parse
+import urllib.request
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
@@ -260,3 +263,51 @@ class JsonCaseSource(CaseSource):
                                         path=entry.get("path"), archived=bool(entry.get("archived", False)),
                                         creator=str(entry.get("creator") or "")))
         return tuple(indicators)
+
+
+class UrlCaseSource(CaseSource):
+    """Reads the latest case from a web address, so that it need not be a file that somebody copied into
+    the repository.
+
+    The address is whatever serves the Socrates export as JSON: a file kept somewhere shared, a raw link to
+    one in a repository, or an endpoint of the team's own. It is read once, when the managing system is
+    built, which is once per run, so a run is argued against one case from its first step to its last even
+    if the case is edited while it goes on.
+
+    Only http and https are accepted. `urllib` would also open a `file:` address or a local path, and a
+    setting that can be pointed at any file on the machine is not one to leave open.
+
+    A token, if the address needs one, is passed in by the caller and sent as a bearer token. It is never
+    read from config.py, which is a public file, and it is not kept on the object's string form.
+    """
+
+    def __init__(self, url, timeout=10.0, token=None):
+        self.url = str(url)
+        self.timeout = float(timeout)
+        self.token = token or None
+
+    def __str__(self):
+        return self.url
+
+    def load(self):
+        if urllib.parse.urlparse(self.url).scheme not in ("http", "https"):
+            raise CaseError(f"the case address {self.url!r} is not an http or https address")
+
+        request = urllib.request.Request(self.url, headers={"Accept": "application/json"})
+        if self.token:
+            request.add_header("Authorization", f"Bearer {self.token}")
+
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                body = response.read()
+        except (urllib.error.URLError, OSError, ValueError) as error:
+            raise CaseError(f"cannot fetch the case from {self.url}: {error}") from error
+
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise CaseError(f"what {self.url} served is not valid JSON: {error}") from error
+
+        case = JsonCaseSource.parse(payload)
+        return Case(name=case.name, nodes=case.nodes, indicators=case.indicators,
+                    categories=case.categories, schema_version=case.schema_version, source=self.url)

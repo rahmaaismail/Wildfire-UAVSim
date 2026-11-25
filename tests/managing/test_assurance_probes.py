@@ -23,7 +23,7 @@ import config
 
 # own python modules
 
-from sim.managing.assurance import probes
+from sim.managing.assurance import NOT_APPLICABLE, probes
 from sim.managing.assurance.probes import PROBES, measure
 from sim.managing.contract import BaseReport, FleetSnapshot, UavReport
 from sim.managing.knowledge import KNOWLEDGE_BASES
@@ -227,6 +227,7 @@ def test_the_deficit_is_not_defined_without_a_base(knowledge):
 
 def lap(knowledge, positions, steps, grid=(10, 10), **kwargs):
     """Feeds the coverage probe one snapshot per step, with the UAVs where positions(step) says."""
+    kwargs.setdefault("policy", "scout")
     value = None
     for step in range(steps):
         shot = snapshot([uav(index, pos, **kwargs) for index, pos in enumerate(positions(step))],
@@ -278,13 +279,34 @@ def test_cells_the_smoke_hid_from_a_uav_are_not_counted_as_seen(knowledge):
 
 @pytest.mark.verifies("MGT-BAL-6")
 def test_a_lost_uav_sees_nothing(knowledge):
-    assert lap(knowledge, lambda step: [(5, 5)], steps=6, alive=False) == pytest.approx(0.0)
+    # one scout is down at (5, 5) and one is flying in the corner: only the corner is in view
+    value = None
+    for step in range(6):
+        shot = snapshot([uav(0, (5, 5), alive=False, policy="scout"), uav(1, (0, 0), policy="scout")], step=step, grid=(10, 10))
+        value = PROBES["scout_coverage"](shot, knowledge)
+    assert value == pytest.approx(9 / 100)
+
+
+@pytest.mark.verifies("MGT-BAL-6")
+def test_coverage_does_not_apply_to_a_team_with_no_scout_and_applies_again_when_one_flies(knowledge):
+    # a firefighting team is not sweeping, so its coverage is neither a failure nor good news
+    assert lap(knowledge, lambda step: [(5, 5)], steps=8, policy="firefighter") is NOT_APPLICABLE
+    assert lap(knowledge, lambda step: [(5, 5)], steps=8, policy="defend-base") is NOT_APPLICABLE
+    # and the memory kept meanwhile means a scout that starts flying has a value at once
+    shot = snapshot([uav(0, (5, 5), policy="scout")], step=8, grid=(10, 10))
+    assert PROBES["scout_coverage"](shot, knowledge) == pytest.approx(25 / 100)
+
+
+@pytest.mark.verifies("MGT-BAL-6")
+def test_scout_firefighter_counts_as_scouting_and_follow_fire_does_not(knowledge):
+    assert "scout-firefighter" in probes.SCOUTING_POLICIES and "scout" in probes.SCOUTING_POLICIES
+    assert "follow-fire" not in probes.SCOUTING_POLICIES and "firefighter" not in probes.SCOUTING_POLICIES
 
 
 @pytest.mark.verifies("MGT-BAL-6")
 def test_taking_the_same_snapshot_twice_changes_nothing(knowledge):
     # options are assessed against the same snapshot more than once, so reading it has to be repeatable
-    shots = [snapshot([uav(0, (5, 5))], step=step) for step in range(7)]
+    shots = [snapshot([uav(0, (5, 5), policy="scout")], step=step) for step in range(7)]
     once = [PROBES["scout_coverage"](shot, knowledge) for shot in shots]
     again = [PROBES["scout_coverage"](shot, knowledge) for shot in shots]
     assert once[-1] == again[-1]

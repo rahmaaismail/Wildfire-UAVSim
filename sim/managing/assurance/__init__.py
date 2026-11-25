@@ -7,9 +7,9 @@ options. Like the rest of sim/managing/ it does not import the simulation.
 """
 
 from .bindings import Bindings, Resolution
-from .case import SUPPORTED_SCHEMA_VERSIONS, Case, CaseSource, JsonCaseSource, Node
+from .case import SUPPORTED_SCHEMA_VERSIONS, Case, CaseSource, JsonCaseSource, Node, UrlCaseSource
 from .errors import CaseError
-from .indicators import Category, Condition, DataPoint, Indicator, Rule
+from .indicators import NOT_APPLICABLE, Category, Condition, DataPoint, Indicator, Rule
 
 __all__ = ["Bindings", "Case", "CaseError", "CaseSource", "Category", "Condition", "DataPoint", "Indicator",
-           "JsonCaseSource", "Node", "Resolution", "Rule", "SUPPORTED_SCHEMA_VERSIONS"]
+           "JsonCaseSource", "NOT_APPLICABLE", "Node", "Resolution", "Rule", "SUPPORTED_SCHEMA_VERSIONS", "UrlCaseSource"]
