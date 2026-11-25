@@ -21,3 +21,4 @@ dist/
 # record of what was decided and why -- so they stay in the repository.
 experiments/**/*.json
 experiments/**/*.csv
+*.log
